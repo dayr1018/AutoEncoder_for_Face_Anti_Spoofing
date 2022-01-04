@@ -20,7 +20,7 @@ import os
 # 옵티마이저, 스케줄러 생성
 
 model = Auto_Encoder()
-weight_path = "/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/original/epoch_2999_model.pth"
+weight_path = "/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/original_v2/epoch_2999_model.pth"
 
 use_cuda = True if torch.cuda.is_available() else False
 if use_cuda:
@@ -43,7 +43,7 @@ args = parser.parse_args()
 time_object = time.localtime(time.time())
 time_string = time.strftime('%Y-%m-%d_%I:%M_%p', time_object)
 
-save_path = args.save_path + f'{time_string}' + '_' + f'{args.message}'
+save_path = args.save_path + f'{args.message}' + '_' + f'{time_string}'
 if not os.path.exists(save_path):
     os.makedirs(save_path)
 
@@ -138,7 +138,6 @@ def test(data_loader, threshold):
 
 if __name__ == "__main__":
     
-
     ## Threshold 에 따른 모델 성능 출력 
     train_loader, valid_loader, test_loader = Facedata_Loader(train_size=64, test_size=64)
     print(f"Test data set Size: {len(test_loader)}")
@@ -147,7 +146,7 @@ if __name__ == "__main__":
     precisioin = []
     recall = []
 
-    threshold = np.arange(300,380,5) 
+    threshold = np.arange(400,500,5) 
     for value in threshold:
         result = test(test_loader, value)
         

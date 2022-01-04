@@ -41,7 +41,7 @@ class Face_Data(Dataset):
 
 def Facedata_Loader(train_size=64, test_size=64): 
     data_transform = transforms.Compose([
-        transforms.Resize((124,124)),
+        transforms.Resize((128,128)),
         transforms.ToTensor(),
         # transforms.Normalize([0.5,0.5,0.5],[0.5,0.5,0.5])
     ])

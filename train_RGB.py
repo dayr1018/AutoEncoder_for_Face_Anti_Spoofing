@@ -9,7 +9,7 @@ import numpy as np
 
 from dataloader.dataloader_RGB import Facedata_Loader
 from loger import Logger
-from utils import plot_roc_curve, plot_eval_per_epoch, cal_metrics, plot_3_kind_data
+from utils import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data
 
 import os
 
@@ -44,7 +44,7 @@ args = parser.parse_args()
 time_object = time.localtime(time.time())
 time_string = time.strftime('%Y-%m-%d_%I:%M_%p', time_object)
 
-save_path = args.save_path + f'{time_string}' + '_' + f'{args.message}'
+save_path = args.save_path + f'{args.message}' + '_' + f'{time_string}' 
 if not os.path.exists(save_path):
     os.makedirs(save_path)
 
@@ -75,11 +75,12 @@ def train(epochs, data_loader):
         # 데이터 불러오기
         # 데이터 to cuda  
 
-        data_all = []
         data_high = []
         data_mid = []
         data_low = []
-        error = []
+        
+        data_real = []
+        data_fake = []
 
         for batch, data in enumerate(data_loader, 0):
 
@@ -108,40 +109,46 @@ def train(epochs, data_loader):
                 loss, current = loss.item(), batch * len(data[0])
                 logger.Print(f"***** loss: {loss:>7f}  [{current:>5d}/{size:>5d}] [{batch}:{len(data[0])}]")
 
-            diff = []
-            for d in range(rgb_image.data.cpu().shape[0]) :        
-                val = mean_squared_error(rgb_image[d].data.cpu().flatten(), recons_image[d].data.cpu().flatten())
-                diff.append(val)
-            mse_by_sklearn = np.array(diff).mean()
-          
-            # light 별로 데이터 분류해서 저장
-            for i in range(len(rgb_path)):
-                part = rgb_path[i].split('/')[-5]
-                data_all.append()
-                if "High" in part:
+            # batch 단위로 되어있는 텐서를 넘파이 배열로 전환 후, 픽셀 값(0~255)으로 전환
+            for i in range(len(rgb_image)):
+                np_image = rgb_image[i].cpu().detach().numpy()
+                np_recons_image = recons_image[i].cpu().detach().numpy()
+                np_image = np_image * 255
+                np_recons_image = np_recons_image * 255
+
+                # mse 구하기 
+                diff = []
+                for d in range(np_image.shape[0]) :        
+                    val = mean_squared_error(np_image[d].flatten(), np_recons_image[d].flatten())
+                    diff.append(val)
+                mse_by_sklearn = np.array(diff).mean()                
+
+                # light 에 따라 데이터 분류하기 
+                path = rgb_path[i].split('/')[-5]
+                if "High" in path:
                     data_high.append(mse_by_sklearn)
-                elif "Mid" in part:
+                elif "Mid" in path:
                     data_mid.append(mse_by_sklearn)
-                elif "Low" in part:
+                elif "Low" in path:
                     data_low.append(mse_by_sklearn)
                 else:
                     print("Data Classification Error - High, Mid, Low")
-                    error.append(rgb_path[i])
-    
+
+                # mask 유무에 따라 데이터 분류하기
+                if label[i].item() == 1:
+                    data_real.append(mse_by_sklearn)
+                else:
+                    data_fake.append(mse_by_sklearn)
+          
         # weight 저장 
         ckpt_name = f'{weight_dir}/epoch_{epoch}'
         torch.save(model.state_dict(), f"{ckpt_name}_model.pth")
 
         # high, mid, low 별로 구분해서 데이터분포 그리기 
-        if not os.path.exists(f'{save_path}/data_distribution'):
-            os.makedirs(f'{save_path}/data_distribution')
-        plot_3_kind_data(f"{save_path}/data_distribution", f"epoch_{epoch}", data_high, data_mid, data_low)
-        if len(error) != 0:
-            logger.Print("Data Distribution Error List")
-            logger.Print(error)        
-
-        # evaluation function   
-        # plot_roc_curve(save_path, f"epoch {args.epochs}", y_true, y_prob)
+        if not os.path.exists(f'{save_path}/graph'):
+            os.makedirs(f'{save_path}/graph')
+        plot_3_kind_data(f"{save_path}/graph", f"Light_Distribution_Epoch_{epoch}_", data_high, data_mid, data_low)
+        plot_real_fake_data(f"{save_path}/graph", f"Mask_Distribution_Epoch_{epoch}_", data_real, data_fake)
         
 if __name__ == "__main__":
     
