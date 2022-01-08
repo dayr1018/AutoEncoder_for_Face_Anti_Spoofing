@@ -9,12 +9,13 @@ class Auto_Encoder(nn.Module):
         # Conv2         16 x 16 x 32 (32=conv2's kernel number)
         # Conv3         8 x 8 x 64   (64=conv3's kernel number)
 
-        # encoder
-        self.encoder_layer1 = nn.Sequential(
+        self.dropout_layer = nn.Dropout2d(0.05)
+
+        self.encoder_layer1 = nn.Sequential(         
             nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1),  
             nn.ReLU(),
             nn.BatchNorm2d(16),
-            nn.MaxPool2d(2,2)
+            nn.MaxPool2d(2,2),
         )
 
         self.encoder_layer2 = nn.Sequential(
@@ -29,20 +30,8 @@ class Auto_Encoder(nn.Module):
             nn.MaxPool2d(2,2)
         )
 
-        # self.encoder_layer4 = nn.Sequential(
-        #     nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-        #     nn.ReLU(),
-        #     nn.MaxPool2d(2,2)
-        # )
-
-        # self.encoder_layer3 = nn.Sequential(
-        #     nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-        #     nn.ReLU(),
-        #     nn.MaxPool2d(2,2)
-        # )
-
         self.decoder_layer1 = nn.Sequential(
-            nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2), # 3 -> 2
+            nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2), # original은 kernel_size=3
             nn.ReLU()
         )        
 
@@ -57,9 +46,9 @@ class Auto_Encoder(nn.Module):
             nn.Sigmoid()
         )  
 
-
     def forward(self, x):
 
+        x = self.dropout_layer(x)
         x = self.encoder_layer1(x)
         x = self.encoder_layer2(x)
         latent = self.encoder_layer3(x)

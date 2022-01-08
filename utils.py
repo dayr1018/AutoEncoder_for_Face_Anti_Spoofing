@@ -120,45 +120,42 @@ def plot_result(path, x, y1, y2, y3):
     # y2 : precision
     # y3 : recall
 
-    x1 = [] 
-    x2 = [] 
-    x3 = []
-    for i in range(len(x)):
-        x1.append(x[i])
-        x2.append(x[i]+1)
-        x3.append(x[i]+2)
+    if len(x) != len(y1) != len(y2) != len(y3):
+        print("length error - accuracy, precision, recall")
+        return
+
+    accuracy = max(y1)
+    index = y1.index(accuracy) 
+
+    accuracy = float(accuracy)
+    precision = float(y2[index])
+    recall = float(y3[index])
 
     fig = plt.figure()
     plt.title(f"Accuracy, Precision, Recall")
     plt.xlabel("Threshold")
     plt.ylabel("Result")
-    bar1 = plt.bar(x1, y1, color='r', label="Accuracy", width=1) 
-    bar2 = plt.bar(x2, y2, color='g', label="Precision", width=1)
-    bar3 = plt.bar(x3, y3, color='b', label="Recall", width=1)   
-
-    # for rect in bar1:
-    #     height = rect.get_height()
-    #     plt.text(rect.get_x() + rect.get_width()/2.0, height, height, color='r', ha='center', va='bottom', size='xx-small')
-    # for rect in bar2:
-    #     height = rect.get_height()
-    #     plt.text(rect.get_x() + rect.get_width()/2.0, height, height, color='b', ha='center', va='bottom', size='xx-small')
-    # for rect in bar3:
-    #     height = rect.get_height()
-    #     plt.text(rect.get_x() + rect.get_width()/2.0, height, height, color='b', ha='center', va='bottom', size='xx-small')
-    
-    for i, v in enumerate(x):
-        plt.text(v, y1[i], y1[i], 
-        fontsize='x-small', 
-        horizontalalignment='center', 
-        verticalalignment='top')
-        plt.text(v, y2[i], y2[i], 
-        fontsize='x-small', 
-        horizontalalignment='center', 
-        verticalalignment='top')
-        plt.text(v, y3[i], y3[i], 
-        fontsize='x-small', 
-        horizontalalignment='center', 
-        verticalalignment='top')
+    plt.plot(x, y1, color='r', label="Accuracy") 
+    plt.plot(x, y2, color='g', label="Precision")
+    plt.plot(x, y3, color='b', label="Recall")   
+    plt.text(0.7, 0.3, f"Accuracy: {accuracy:4f}")
+    plt.text(0.7, 0.2, f"Precision: {precision:4f}")
+    plt.text(0.7, 0.1, f"Recall: {recall:4f}")    
     plt.legend(loc='upper right', fontsize='x-small')
-    plt.savefig(path+f'/Result_Accuracy_Presicion_Recall.png')
+    plt.savefig(path+'/Result_Accuracy_Presicion_Recall.png')
     plt.close(fig)
+
+def find_max_accuracy(threshold, accuracy, precision, recall):
+    if len(threshold) != len(accuracy) != len(precision) != len(recall):
+        print("length error - accuracy, precision, recall")
+        return
+    
+    accu = max(accuracy)
+    idx = accuracy.index(accu) 
+    
+    thres = float(threshold[idx])
+    prec = float(precision[idx])
+    reca = float(recall[idx])
+
+    return thres, accu, prec, reca
+        

@@ -5,7 +5,7 @@ import argparse
 from models.Auto_Encoder import Auto_Encoder
 from dataloader.dataloader_RGB import Facedata_Loader
 from loger import Logger
-from utils import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data, plot_result
+from utils import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data, plot_result, find_max_accuracy
 
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -20,7 +20,7 @@ import os
 # 옵티마이저, 스케줄러 생성
 
 model = Auto_Encoder()
-weight_path = "/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/original_v2/epoch_2999_model.pth"
+weight_path = "/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/dropout_v3/epoch_2999_model.pth"
 
 use_cuda = True if torch.cuda.is_available() else False
 if use_cuda:
@@ -49,6 +49,8 @@ if not os.path.exists(save_path):
 
 logger = Logger(f'{save_path}/logs.logs')
 logger.Print(time_string + " - " + args.message + "\n")
+# logger_result = Logger(f'{save_path}/result.logs')
+# logger_result.Print(time_string + " - " + args.message + "\n")
 
 def test(data_loader, threshold):
     
@@ -137,7 +139,7 @@ def test(data_loader, threshold):
     return accuracy, precision, recall
 
 if __name__ == "__main__":
-    
+
     ## Threshold 에 따른 모델 성능 출력 
     train_loader, valid_loader, test_loader = Facedata_Loader(train_size=64, test_size=64)
     print(f"Test data set Size: {len(test_loader)}")
@@ -146,22 +148,29 @@ if __name__ == "__main__":
     precisioin = []
     recall = []
 
-    threshold = np.arange(400,500,5) 
+    ## threshold 리스트 결정 판단해야.
+    threshold = np.arange(500,650,5) 
     for value in threshold:
         result = test(test_loader, value)
         
-        logger.Print(f"Threshold: {value}")
-        logger.Print(f"accuracy: {result[0]:3f}")
-        logger.Print(f"precisioin: {result[1]:3f}")
-        logger.Print(f"recall: {result[2]:3f}")
+        # logger.Print(f"***** Threshold: {value}")
+        # logger.Print(f"***** accuracy: {result[0]:3f}")
+        # logger.Print(f"***** precisioin: {result[1]:3f}")
+        # logger.Print(f"***** recall: {result[2]:3f}")
 
         accuracy.append(f"{result[0]:3f}")
         precisioin.append(f"{result[1]:3f}")
         recall.append(f"{result[2]:3f}")
 
-    if not os.path.exists(f'{save_path}/graph'):
-        os.makedirs(f'{save_path}/graph')
-    plot_result(f"{save_path}/graph", threshold, accuracy, precisioin, recall)
+    # ## 그래프 그리기 (사용x)
+    # if not os.path.exists(f'{save_path}/graph'):
+    #     os.makedirs(f'{save_path}/graph')
+    # plot_result(f"{save_path}/graph", threshold, accuracy, precisioin, recall)
 
-    ## valid 에 따른? 
-    
+    ## 결과 파일 따로 저장 
+    thres, accu, prec, reca = find_max_accuracy(threshold, accuracy, precisioin, recall)
+    logger.Print(f"***** Result (Max Accuracy)")
+    logger.Print(f"***** Threshold: {thres}")
+    logger.Print(f"***** Accuracy: {float(accu):3f}")
+    logger.Print(f"***** Precisioin: {float(prec):3f}")
+    logger.Print(f"***** Recall: {float(reca):3f}")

@@ -59,15 +59,6 @@ def train(epochs, data_loader):
 
     model.train()
 
-    y_true = []
-    y_prob = []
-    # y_pred = []
-
-    # accuracy_list = []
-    # precision_list = []
-    # recall_list = []
-    # epoch_list = []
-
     for epoch in range(epochs):
 
         logger.Print(f"***** << Training epoch:{epoch} >>")  
