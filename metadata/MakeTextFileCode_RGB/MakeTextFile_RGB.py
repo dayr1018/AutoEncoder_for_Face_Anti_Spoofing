@@ -38,32 +38,32 @@ with open(Train_File, 'a') as file:
 with open(Valid_File, 'w') as file:
     for fileNum in range(ValidData_start,ValidData_End):
         for jpgNum in range(1,31):  
-            file.write("Test/" + str(fileNum) + "/KINECT/Light_01_High/attack_07_3d_mask/color/crop/" + convert(jpgNum) + ".jpg 0\n" )
+            file.write("Training/" + str(fileNum) + "/KINECT/Light_01_High/attack_07_3d_mask/color/crop/" + convert(jpgNum) + ".jpg 0\n" )
             
 with open(Valid_File, 'a') as file:
     for fileNum in range(ValidData_start,ValidData_End):
         for jpgNum in range(1,31):           
-            file.write("Test/" + str(fileNum) + "/KINECT/Light_02_Mid/attack_07_3d_mask/color/crop/" + convert(jpgNum) + ".jpg 0\n" )
+            file.write("Training/" + str(fileNum) + "/KINECT/Light_02_Mid/attack_07_3d_mask/color/crop/" + convert(jpgNum) + ".jpg 0\n" )
 
 with open(Valid_File, 'a') as file:
     for fileNum in range(ValidData_start,ValidData_End):
         for jpgNum in range(1,31):  
-            file.write("Test/" + str(fileNum) + "/KINECT/Light_03_Low/attack_07_3d_mask/color/crop/" + convert(jpgNum) + ".jpg 0\n" )
+            file.write("Training/" + str(fileNum) + "/KINECT/Light_03_Low/attack_07_3d_mask/color/crop/" + convert(jpgNum) + ".jpg 0\n" )
 
 with open(Valid_File, 'a') as file:
     for fileNum in range(ValidData_start,ValidData_End):
         for jpgNum in range(1,31):  
-            file.write("Test/" + str(fileNum) + "/KINECT/Light_01_High/real_01/color/crop/" + convert(jpgNum) + ".jpg 1\n" )
+            file.write("Training/" + str(fileNum) + "/KINECT/Light_01_High/real_01/color/crop/" + convert(jpgNum) + ".jpg 1\n" )
             
 with open(Valid_File, 'a') as file:
     for fileNum in range(ValidData_start,ValidData_End):
         for jpgNum in range(1,31):           
-            file.write("Test/" + str(fileNum) + "/KINECT/Light_02_Mid/real_01/color/crop/" + convert(jpgNum) + ".jpg 1\n" )
+            file.write("Training/" + str(fileNum) + "/KINECT/Light_02_Mid/real_01/color/crop/" + convert(jpgNum) + ".jpg 1\n" )
 
 with open(Valid_File, 'a') as file:
     for fileNum in range(ValidData_start,ValidData_End):
         for jpgNum in range(1,31):  
-            file.write("Test/" + str(fileNum) + "/KINECT/Light_03_Low/real_01/color/crop/" + convert(jpgNum) + ".jpg 1\n" )
+            file.write("Training/" + str(fileNum) + "/KINECT/Light_03_Low/real_01/color/crop/" + convert(jpgNum) + ".jpg 1\n" )
 
 
 # Test Data (True + False)

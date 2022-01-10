@@ -78,10 +78,11 @@ def cal_metrics(y_true, y_pred):
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
     
     accuracy = (tp + tn) / (tp + fn + fp + tn)
-    precision = tp / (tp + fp)
+    precision = float(tp) / (float(tp) + float(fp))
     recall = tp / (tp + fn)
+    f1 = 2 * (precision * recall) / (precision + recall)
     
-    return accuracy, precision, recall
+    return accuracy, precision, recall, f1
 
 def plot_3_kind_data(path, filename, y1, y2, y3):
     x1 = np.arange(1, len(y1)+1, 1)
@@ -156,6 +157,7 @@ def find_max_accuracy(threshold, accuracy, precision, recall):
     thres = float(threshold[idx])
     prec = float(precision[idx])
     reca = float(recall[idx])
+    f1 = 2 * (prec * reca) / (prec + reca)
 
-    return thres, accu, prec, reca
+    return thres, accu, prec, reca, f1
         

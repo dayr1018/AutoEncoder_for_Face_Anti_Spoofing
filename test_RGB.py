@@ -15,27 +15,15 @@ from PIL import Image
 
 import os
 
-# 모델 생성
-# loss 생성 -> MSE loss 사용
-# 옵티마이저, 스케줄러 생성
-
-model = Auto_Encoder()
-weight_path = "/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/dropout_v3/epoch_2999_model.pth"
-
-use_cuda = True if torch.cuda.is_available() else False
-if use_cuda:
-    model = torch.nn.DataParallel(model, device_ids=list(range(torch.cuda.device_count()))) #  device_ids=[0, 1, 2]
-    model.cuda()
-    model.load_state_dict(torch.load(weight_path))
-else:
-    print("Something Wrong, Cuda Not Used")
-
+# argument parser
 parser = argparse.ArgumentParser(description='face anto-spoofing')
 parser.add_argument('--batch-size', default='64', type=int, help='train batch size') 
 parser.add_argument('--test-size', default='64', type=int, help='test batch size') 
 parser.add_argument('--save-path', default='../ad_output/RGB/logs/Test/', type=str, help='logs save path')
 parser.add_argument('--checkpoint', default='model.pth', type=str, help='pretrained model checkpoint')
 parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
+parser.add_argument('--model', default='', type=str, help='model directory')
+parser.add_argument('--threshold', default='', type=int, help='threshold')
 parser.add_argument('--train', default=False, type=bool, help='train')
 parser.add_argument('--skf', default=0, type=int, help='stratified k-fold')
 args = parser.parse_args()
@@ -52,9 +40,19 @@ logger.Print(time_string + " - " + args.message + "\n")
 # logger_result = Logger(f'{save_path}/result.logs')
 # logger_result.Print(time_string + " - " + args.message + "\n")
 
-def test(data_loader, threshold):
+
+def test(data_loader, threshold, checkpoint):
     
+    model = Auto_Encoder()
     model.eval()
+
+    use_cuda = True if torch.cuda.is_available() else False
+    if use_cuda:
+        model = torch.nn.DataParallel(model, device_ids=list(range(torch.cuda.device_count()))) #  device_ids=[0, 1, 2]
+        model.cuda()
+        model.load_state_dict(torch.load(checkpoint))
+    else:
+        print("Something Wrong, Cuda Not Used")
 
     dist=[]
     dist_noblack=[]
@@ -72,14 +70,13 @@ def test(data_loader, threshold):
 
     logger.Print(f"***** << Test threshold({threshold}) >>")  
 
-    for batch, data in enumerate(data_loader, 1):
+    for data in data_loader:
 
-        size = len(data_loader.dataset)
         rgb_image, label, rgb_path = data
         
         if use_cuda:
-            rgb_image.cuda()
-            label.cuda()
+            rgb_image = rgb_image.cuda()
+            label = label.cuda()
         else:
             print("Something Wrong, Cuda Not Used")
         
@@ -89,7 +86,7 @@ def test(data_loader, threshold):
         # batch 단위로 되어있는 텐서를 넘파이 배열로 전환 후, 픽셀 값(0~255)으로 전환
         # y_true, y_prod, y_pred 값도 여기서 같이 처리
         for i in range(len(rgb_image)):
-            np_image = rgb_image[i].numpy()
+            np_image = rgb_image[i].cpu().detach().numpy()
             np_recons_image = recons_image[i].cpu().detach().numpy()
             np_image = np_image * 255
             np_recons_image = np_recons_image * 255
@@ -119,7 +116,7 @@ def test(data_loader, threshold):
                 data_fake.append(mse_by_sklearn)
 
             # 모델 결과값 
-            y_true.append(label[i].numpy())
+            y_true.append(label[i].cpu().detach().numpy())
             y_prob.append(mse_by_sklearn)
             if mse_by_sklearn < threshold:
                 y_pred.append(1)
@@ -135,32 +132,22 @@ def test(data_loader, threshold):
     # 모델 평가지표 및 그리기 
     plot_roc_curve(f"{save_path}/graph", f"threshold({threshold})", y_true, y_prob)
     
-    accuracy, precision, recall = cal_metrics(y_true, y_pred)
-    return accuracy, precision, recall
+    accuracy, precision, recall, f1 = cal_metrics(y_true, y_pred)
+
+    return accuracy, precision, recall, f1
 
 if __name__ == "__main__":
 
     ## Threshold 에 따른 모델 성능 출력 
-    train_loader, valid_loader, test_loader = Facedata_Loader(train_size=64, test_size=64)
-    print(f"Test data set Size: {len(test_loader)}")
+    _, _, test_loader = Facedata_Loader(train_size=64, test_size=64)
 
-    accuracy = []
-    precisioin = []
-    recall = []
+    if args.threshold == '':
+        print("--threshold option is required")
+        exit()
 
-    ## threshold 리스트 결정 판단해야.
-    threshold = np.arange(500,650,5) 
-    for value in threshold:
-        result = test(test_loader, value)
-        
-        # logger.Print(f"***** Threshold: {value}")
-        # logger.Print(f"***** accuracy: {result[0]:3f}")
-        # logger.Print(f"***** precisioin: {result[1]:3f}")
-        # logger.Print(f"***** recall: {result[2]:3f}")
+    checkpoint = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_2999_model.pth"
 
-        accuracy.append(f"{result[0]:3f}")
-        precisioin.append(f"{result[1]:3f}")
-        recall.append(f"{result[2]:3f}")
+    accuracy, precision, recall, f1 = test(test_loader, args.threshold, checkpoint)
 
     # ## 그래프 그리기 (사용x)
     # if not os.path.exists(f'{save_path}/graph'):
@@ -168,9 +155,10 @@ if __name__ == "__main__":
     # plot_result(f"{save_path}/graph", threshold, accuracy, precisioin, recall)
 
     ## 결과 파일 따로 저장 
-    thres, accu, prec, reca = find_max_accuracy(threshold, accuracy, precisioin, recall)
     logger.Print(f"***** Result (Max Accuracy)")
-    logger.Print(f"***** Threshold: {thres}")
-    logger.Print(f"***** Accuracy: {float(accu):3f}")
-    logger.Print(f"***** Precisioin: {float(prec):3f}")
-    logger.Print(f"***** Recall: {float(reca):3f}")
+    logger.Print(f"***** Threshold: {args.threshold}")
+    logger.Print(f"***** Accuracy: {float(accuracy):3f}")
+    logger.Print(f"***** Precisioin: {float(precision):3f}")
+    logger.Print(f"***** Recall: {float(recall):3f}")
+    logger.Print(f"***** F1: {float(f1):3f}")
+    
