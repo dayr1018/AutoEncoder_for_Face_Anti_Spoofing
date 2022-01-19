@@ -2,7 +2,7 @@ import torch
 import time
 import argparse
 
-from models.Auto_Encoder import Auto_Encoder
+from models.Auto_Encoder import Auto_Encoder_Original, Auto_Encoder_Dropout_v1, Auto_Encoder_Dropout_v2, Auto_Encoder_layer4
 from dataloader.dataloader_RGB import Facedata_Loader
 from loger import Logger
 from utils import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data, plot_result, find_max_accuracy
@@ -37,13 +37,21 @@ if not os.path.exists(save_path):
 
 logger = Logger(f'{save_path}/logs.logs')
 logger.Print(time_string + " - " + args.message + "\n")
-# logger_result = Logger(f'{save_path}/result.logs')
-# logger_result.Print(time_string + " - " + args.message + "\n")
 
 
 def test(data_loader, threshold, checkpoint):
-    
-    model = Auto_Encoder()
+
+    if "original" in args.message:
+        model = Auto_Encoder_Original()
+    elif "dropout_v1" in args.message:
+        model = Auto_Encoder_Dropout_v1()
+        print("*************** dropout_v1")
+    elif "dropout_v2" in args.message:
+        model = Auto_Encoder_Dropout_v2()
+        print("*************** dropout_v2")
+    elif "layer" in args.message:
+        model = Auto_Encoder_layer4()
+
     model.eval()
 
     use_cuda = True if torch.cuda.is_available() else False
@@ -127,7 +135,7 @@ def test(data_loader, threshold, checkpoint):
     if not os.path.exists(f'{save_path}/graph'):
         os.makedirs(f'{save_path}/graph')
     plot_3_kind_data(f"{save_path}/graph", "data_distribution(light)", data_high, data_mid, data_low)       
-    plot_real_fake_data(f"{save_path}/graph", "data_distribution(real,fake)", data_fake, data_real)
+    plot_real_fake_data(f"{save_path}/graph", "data_distribution(real,fake)", data_real, data_fake)
 
     # 모델 평가지표 및 그리기 
     plot_roc_curve(f"{save_path}/graph", f"threshold({threshold})", y_true, y_prob)
@@ -145,9 +153,12 @@ if __name__ == "__main__":
         print("--threshold option is required")
         exit()
 
-    checkpoint = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_2999_model.pth"
+    checkpoint_original = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_1000_model.pth"
+    checkpoint_dropout_v1 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_1370_model.pth"
+    checkpoint_dropout_v2 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_380_model.pth"
+    checkpoint_layer4_v1 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_2990_model.pth"
 
-    accuracy, precision, recall, f1 = test(test_loader, args.threshold, checkpoint)
+    accuracy, precision, recall, f1 = test(test_loader, args.threshold, checkpoint_layer4_v1)
 
     # ## 그래프 그리기 (사용x)
     # if not os.path.exists(f'{save_path}/graph'):

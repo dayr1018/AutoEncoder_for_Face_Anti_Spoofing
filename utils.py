@@ -73,16 +73,19 @@ def cal_metrics(y_true, y_pred):
     
     if len(y_true) != len(y_pred):
         print("Evalution length Error - y_true, y_pred")
-        return 0,0,0
+        return 0,0,0,0
     
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
     
-    accuracy = (tp + tn) / (tp + fn + fp + tn)
-    precision = float(tp) / (float(tp) + float(fp))
-    recall = tp / (tp + fn)
-    f1 = 2 * (precision * recall) / (precision + recall)
+    accuracy_cal = (float(tp) + float(tn)) / (float(tp) + float(fn) + float(fp) + float(tn))
+    precision_cal = float(tp) / (float(tp) + float(fp))
+    recall_cal = float(tp) / (float(tp) + float(fn))
+
+    f1_cal = 0
+    if precision_cal + recall_cal != 0:
+        f1_cal = 2 * (float(precision_cal) * float(recall_cal)) / (float(precision_cal) + float(recall_cal))
     
-    return accuracy, precision, recall, f1
+    return accuracy_cal, precision_cal, recall_cal, f1_cal
 
 def plot_3_kind_data(path, filename, y1, y2, y3):
     x1 = np.arange(1, len(y1)+1, 1)
@@ -90,7 +93,7 @@ def plot_3_kind_data(path, filename, y1, y2, y3):
     x3 = np.arange(1, len(y3)+1, 1)
     
     fig = plt.figure()
-    plt.title(f"Training Data Distrbution (Light)")
+    plt.title(f"Data Distrbution (Light)")
     plt.xlabel("Data Number")
     plt.ylabel("MSE Value")
     plt.plot(x1, y1, 'ro', label=f"High Light Data({len(y1)})")
@@ -105,11 +108,11 @@ def plot_real_fake_data(path, filename, y1, y2):
     x2 = np.arange(1, len(y2)+1, 1)
     
     fig = plt.figure()
-    plt.title(f"Training Data Distrbution (Real, Fake)")
+    plt.title(f"Data Distrbution (Real, Fake)")
     plt.xlabel("Data Number")
     plt.ylabel("MSE Value")
-    plt.plot(x1, y1, 'ro', label=f"Real Data({len(y1)})")
-    plt.plot(x2, y2, 'bo', label=f"Fake Data({len(y2)})")
+    plt.plot(x1, y1, 'bo', label=f"Real Data({len(y1)})")
+    plt.plot(x2, y2, 'ro', label=f"Fake Data({len(y2)})")
     plt.legend(loc='upper right', fontsize='x-small')
     plt.savefig(path+f'/{filename}.png')
     plt.close(fig)

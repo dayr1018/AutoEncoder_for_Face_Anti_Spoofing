@@ -50,9 +50,9 @@ def Facedata_Loader(train_size=64, test_size=64):
     valid_data=Face_Data(datatxt='MakeTextFileCode_RGB/valid_data_list.txt', transform=data_transform)
     test_data=Face_Data(datatxt='MakeTextFileCode_RGB/test_data_list.txt', transform=data_transform) # test 데이터 세 종류 있음. 
 
-    train_loader = DataLoader(dataset=train_data, batch_size=train_size, shuffle=True, num_workers=32)
-    valid_loader = DataLoader(dataset=valid_data, batch_size=train_size, shuffle=True, num_workers=32)
-    test_loader = DataLoader(dataset=test_data, batch_size=test_size, shuffle=True, num_workers=32)
+    train_loader = DataLoader(dataset=train_data, batch_size=train_size, shuffle=True, num_workers=8)
+    valid_loader = DataLoader(dataset=valid_data, batch_size=train_size, shuffle=True, num_workers=8)
+    test_loader = DataLoader(dataset=test_data, batch_size=test_size, shuffle=True, num_workers=8)
 
     return train_loader, valid_loader, test_loader
 

@@ -1,7 +1,7 @@
 import torch
 import time
 import argparse
-from models.Auto_Encoder import Auto_Encoder
+from models.Auto_Encoder import Auto_Encoder_Original, Auto_Encoder_Dropout, Auto_Encoder_layer4
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from sklearn.metrics import mean_squared_error
@@ -41,7 +41,14 @@ logger.Print(time_string + " - " + args.message  + "\n")
 
 def valid(data_loader, checkpoint):
 
-    model = Auto_Encoder()
+    if "original" in args.message:
+        model = Auto_Encoder_Original()
+    elif "dropout" in args.message:
+        model = Auto_Encoder_Dropout()
+    elif "layer" in args.message:
+        model = Auto_Encoder_layer4()
+
+    model.eval()
 
     use_cuda = True if torch.cuda.is_available() else False
     if use_cuda:
@@ -94,7 +101,7 @@ def valid(data_loader, checkpoint):
             elif "Low" in path:
                 data_low.append(mse_by_sklearn)
             else:
-                print("Data Classification Error - High, Mid, Low")
+                print("------ Data Classification Error - High, Mid, Low")
 
             # mask 유무에 따라 데이터 분류하기
             if label[i].item() == 1:
@@ -104,8 +111,8 @@ def valid(data_loader, checkpoint):
 
             # y_true 는 넣어.
             y_true.append(label[i].cpu().detach().numpy())
-    print("MSE Caculation Finished")
-    print(f"Max MSE: {max(mse)}, Min MSE: {min(mse)}")
+    print("------ MSE Caculation Finished")
+    print(f"------ Max MSE: {max(mse)}, Min MSE: {min(mse)}")
 
     # 2. MSE 분포에 따른 threshold 리스트 결정 
     threshold = np.arange(round(min(mse), -1)+10, round(max(mse), -1)-10, 10)
@@ -117,7 +124,7 @@ def valid(data_loader, checkpoint):
     f1_per_thres = []
     for thres in threshold:   
 
-        print(f"***** Threshold: {thres}")
+        print(f"------  Threshold: {thres}")
 
         y_pred = []
         for i in range(len(mse)):
@@ -127,7 +134,7 @@ def valid(data_loader, checkpoint):
                 y_pred.append(0)
 
         if len(y_true) != len(y_pred):
-            logger.Print("length error - y_true, y_pred")
+            logger.Print("------ length error - y_true, y_pred")
 
         # 한번 계산을 해주고, 그 계산에 대한 비교 해줘야 함. 
         accu, prec, reca, f = cal_metrics(y_true, y_pred) 
@@ -200,7 +207,7 @@ if __name__ == "__main__":
     logger.Print(f"***** Result")
     logger.Print(f"***** Max Accuracy: {accuracy_max:3f}")
     logger.Print(f"***** Epoch(=real-1): {epoch_max}")
-    logger.Print(f"***** Threshold: {threshold_max:3f}")
     logger.Print(f"***** Precision: {precision_max:3f}")
     logger.Print(f"***** Recall: {recall_max:3f}")
     logger.Print(f"***** F1: {f1_max:3f}")
+    logger.Print(f"***** Threshold: {threshold_max:3f}")
