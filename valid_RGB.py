@@ -1,13 +1,14 @@
 import torch
 import time
 import argparse
-from models.Auto_Encoder import Auto_Encoder_Original, Auto_Encoder_Dropout, Auto_Encoder_layer4
+from models.Auto_Encoder_RGB import Auto_Encoder_Original, Auto_Encoder_Dropout_v1, Auto_Encoder_Dropout_v2, Auto_Encoder_layer4
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from sklearn.metrics import mean_squared_error
 import numpy as np
+from torch.utils.tensorboard import SummaryWriter
 
-from dataloader.dataloader_RGB import Facedata_Loader
+from ad_dataloader.dataloader_RGB import Facedata_Loader
 from loger import Logger
 from utils import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data
 
@@ -24,31 +25,48 @@ parser.add_argument('--save-path', default='../ad_output/RGB/logs/Valid/', type=
 parser.add_argument('--checkpoint', default='model.pth', type=str, help='pretrained model checkpoint')
 parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
 parser.add_argument('--model', default='', type=str, help='model directory')
-parser.add_argument('--train', default=False, type=bool, help='train')
+parser.add_argument('--epochs', default=3000, type=int, help='valid epochs')
 parser.add_argument('--skf', default=0, type=int, help='stratified k-fold')
 args = parser.parse_args()
 
 time_object = time.localtime(time.time())
 time_string = time.strftime('%Y-%m-%d_%I:%M_%p', time_object)
 
-save_path = args.save_path + f'{args.message}' + '_' + f'{time_string}'
+save_path = args.save_path + f'{args.message}' + '_' + f'{time_string}' 
+save_path_valid = save_path + '/valid'
 if not os.path.exists(save_path):
     os.makedirs(save_path)
+if not os.path.exists(save_path_valid):
+    os.makedirs(save_path_valid)
 
 logger = Logger(f'{save_path}/logs.logs')
-logger.Print(time_string + " - " + args.message  + "\n")
+logger.Print(time_string + " - " + args.message + "\n")
+
+weight_dir = f'../ad_output/RGB/checkpoint/old_v3/{args.message}'
+if not os.path.exists(weight_dir):
+    os.makedirs(weight_dir)
+
+writer = SummaryWriter()
+
+# 모델 생성
+# loss 생성 -> MSE loss 사용
+# 옵티마이저, 스케줄러 생성
 
 
-def valid(data_loader, checkpoint):
+def valid(valid_loader, epoch, epochs, checkpoint):
 
-    if "original" in args.message:
-        model = Auto_Encoder_Original()
-    elif "dropout" in args.message:
-        model = Auto_Encoder_Dropout()
-    elif "layer" in args.message:
+    if "original" in args.model:
+        model = Auto_Encoder_Original()        
+        print("*****  You're validating 'original' model.")
+    elif "dropout_v1" in args.model:
+        model = Auto_Encoder_Dropout_v1()
+        print("*****  You're validating 'dropout_v1' model.")
+    elif "dropout_v2" in args.model:
+        model = Auto_Encoder_Dropout_v2()
+        print("*****  You're validating 'dropout_v2' model.")
+    elif "layer4" in args.model:
         model = Auto_Encoder_layer4()
-
-    model.eval()
+        print("*****  You're validating 'layer4' model.")
 
     use_cuda = True if torch.cuda.is_available() else False
     if use_cuda:
@@ -57,6 +75,8 @@ def valid(data_loader, checkpoint):
         model.load_state_dict(torch.load(checkpoint))
     else:
         print("Something Wrong, Cuda Not Used")
+
+    model.eval()
 
     # 1. 전체 데이터에 대한 MSE 구하기 
     mse = []
@@ -71,7 +91,7 @@ def valid(data_loader, checkpoint):
     data_real = []
     data_fake = []
 
-    for _, data in enumerate(data_loader):
+    for _, data in enumerate(valid_loader):
         rgb_image, label, rgb_path = data
         rgb_image = rgb_image.cuda()        
         label = label.cuda()
@@ -89,7 +109,7 @@ def valid(data_loader, checkpoint):
             for d in range(np_image.shape[0]) :        
                 val = mean_squared_error(np_image[d].flatten(), np_recons_image[d].flatten())
                 diff.append(val)
-            mse_by_sklearn = np.array(diff).mean()
+            mse_by_sklearn = np.array(diff).mean() 
             mse.append(mse_by_sklearn)
 
             # light 에 따라 데이터 분류하기 
@@ -111,8 +131,9 @@ def valid(data_loader, checkpoint):
 
             # y_true 는 넣어.
             y_true.append(label[i].cpu().detach().numpy())
+
     print("------ MSE Caculation Finished")
-    print(f"------ Max MSE: {max(mse)}, Min MSE: {min(mse)}")
+    logger.Print(f"------ Max MSE: {max(mse)}, Min MSE: {min(mse)}")
 
     # 2. MSE 분포에 따른 threshold 리스트 결정 
     threshold = np.arange(round(min(mse), -1)+10, round(max(mse), -1)-10, 10)
@@ -123,8 +144,6 @@ def valid(data_loader, checkpoint):
     recall_per_thres = []
     f1_per_thres = []
     for thres in threshold:   
-
-        print(f"------  Threshold: {thres}")
 
         y_pred = []
         for i in range(len(mse)):
@@ -148,15 +167,14 @@ def valid(data_loader, checkpoint):
     precision_max = precision_per_thres[index]
     recall_max = recall_per_thres[index]
     f1_max = f1_per_thres[index]
-    threhold_max = threshold[index]
+    threshold_max = threshold[index]
 
     # 데이터 분포도 그래프로 그리기 
-    if not os.path.exists(f'{save_path}/graph'):
-        os.makedirs(f'{save_path}/graph')
-    plot_3_kind_data(f"{save_path}/graph", f"Light_Distribution_Threshold_{thres}_", data_high, data_mid, data_low)
-    plot_real_fake_data(f"{save_path}/graph", f"Mask_Distribution_Threshold_{thres}_", data_real, data_fake)
+    if (epoch % 10) == 0 or (epoch == epochs-1): 
+        plot_3_kind_data(save_path_valid, f"Light_Distribution_Epoch_{epoch}_", epoch, data_high, data_mid, data_low)
+        plot_real_fake_data(save_path_valid, f"Mask_Distribution_Epoch_{epoch}_", epoch, data_real, data_fake)
 
-    return threhold_max, accuracy_max, precision_max, recall_max, f1_max
+    return threshold_max, accuracy_max, precision_max, recall_max, f1_max, data_high, data_mid, data_low, data_real, data_fake
 
 if __name__ == "__main__":
 
@@ -167,29 +185,37 @@ if __name__ == "__main__":
     precision_per_epoch = []
     recall_per_epoch = []
     f1_per_epoch = []
-    epochs = []
+    epoch_list = []
 
-    for i in range(2999, 3000, 1):
+    for epoch in range(args.epochs):
+       if (epoch % 10) == 0 or epoch == (args.epochs-1):
+            # validation 수행
+            checkpoint=f"{weight_dir}/epoch_{epoch}_model.pth"
+            threshold, accuracy, precision, recall, f1, data_high, data_mid, data_low, data_real, data_fake = valid(valid_loader, epoch, args.epochs, checkpoint) 
+            
+            writer.add_scalar("Threshold/Epoch", threshold, epoch)
+            writer.add_scalar("Accuracy/Epoch", accuracy, epoch)
+            
+            threshold_per_epoch.append(threshold)
+            accuracy_per_epoch.append(accuracy)
+            precision_per_epoch.append(precision)
+            recall_per_epoch.append(recall)
+            f1_per_epoch.append(f1)
+            epoch_list.append(epoch)
+            
+            # 결과 나타내기 
+            # high, mid, low 별로 구분해서 데이터분포 그리기 
+            plot_3_kind_data(f"{save_path}", f"Light_Distribution_Epoch_{epoch}_", epoch, data_high, data_mid, data_low)
+            plot_real_fake_data(f"{save_path}", f"Mask_Distribution_Epoch_{epoch}_", epoch, data_real, data_fake)
 
-        print(f"***** Epoch {i} start")
-
-        checkpoint = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_{i}_model.pth"
-        thres, accu, prec, reca, f1 = valid(valid_loader, checkpoint)
-
-        threshold_per_epoch.append(thres)
-        accuracy_per_epoch.append(accu) 
-        precision_per_epoch.append(prec)
-        recall_per_epoch.append(reca)
-        f1_per_epoch.append(f1)
-        epochs.append(i)
-
+    # 모든 게 끝났을 때, epoch 이 언제일 때 가장 큰 accuracy를 갖는지 확인 
     accuracy_max = max(accuracy_per_epoch)
     index = accuracy_per_epoch.index(accuracy_max)
-    epoch_max = epochs[index]
     threshold_max = threshold_per_epoch[index]
     precision_max = precision_per_epoch[index]
     recall_max = recall_per_epoch[index]
     f1_max = f1_per_epoch[index]
+    epoch_max = epoch_list[index]
 
     logger.Print(f"***** Total Threshold per epoch")
     logger.Print(threshold_per_epoch)
@@ -202,12 +228,12 @@ if __name__ == "__main__":
     logger.Print(f"***** Total F1 per epoch")
     logger.Print(f1_per_epoch)
     logger.Print(f"***** Total epoch ")
-    logger.Print(epochs)
+    logger.Print(epoch_list)
 
     logger.Print(f"***** Result")
     logger.Print(f"***** Max Accuracy: {accuracy_max:3f}")
-    logger.Print(f"***** Epoch(=real-1): {epoch_max}")
+    logger.Print(f"***** Epoch: {epoch_max}")
     logger.Print(f"***** Precision: {precision_max:3f}")
     logger.Print(f"***** Recall: {recall_max:3f}")
     logger.Print(f"***** F1: {f1_max:3f}")
-    logger.Print(f"***** Threshold: {threshold_max:3f}")
+    logger.Print(f"***** Threshold: {threshold_max:3f}") 

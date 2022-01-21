@@ -2,7 +2,7 @@ import torch
 import time
 import argparse
 
-from models.Auto_Encoder import Auto_Encoder_Original, Auto_Encoder_Dropout_v1, Auto_Encoder_Dropout_v2, Auto_Encoder_layer4
+from models.Auto_Encoder_RGB import Auto_Encoder_Original, Auto_Encoder_Dropout, Auto_Encoder_layer4
 from dataloader.dataloader_RGB import Facedata_Loader
 from loger import Logger
 from utils import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data, plot_result, find_max_accuracy
@@ -41,16 +41,15 @@ logger.Print(time_string + " - " + args.message + "\n")
 
 def test(data_loader, threshold, checkpoint):
 
-    if "original" in args.message:
-        model = Auto_Encoder_Original()
-    elif "dropout_v1" in args.message:
-        model = Auto_Encoder_Dropout_v1()
-        print("*************** dropout_v1")
-    elif "dropout_v2" in args.message:
-        model = Auto_Encoder_Dropout_v2()
-        print("*************** dropout_v2")
-    elif "layer" in args.message:
+    if "original" in args.model:
+        model = Auto_Encoder_Original()        
+        print("*****  You're testing 'original' model.")
+    elif "dropout_v1" in args.model:
+        model = Auto_Encoder_Dropout()
+        print("*****  You're testing 'dropout' model.")
+    elif "layer4" in args.model:
         model = Auto_Encoder_layer4()
+        print("*****  You're testing 'layer4' model.")
 
     model.eval()
 
@@ -134,8 +133,8 @@ def test(data_loader, threshold, checkpoint):
     # light, mask유무 에 따른 데이터분포 그리기
     if not os.path.exists(f'{save_path}/graph'):
         os.makedirs(f'{save_path}/graph')
-    plot_3_kind_data(f"{save_path}/graph", "data_distribution(light)", data_high, data_mid, data_low)       
-    plot_real_fake_data(f"{save_path}/graph", "data_distribution(real,fake)", data_real, data_fake)
+    plot_3_kind_data(f"{save_path}/graph", "data_distribution(light)", "x", data_high, data_mid, data_low)       
+    plot_real_fake_data(f"{save_path}/graph", "data_distribution(real,fake)", "x", data_real, data_fake)
 
     # 모델 평가지표 및 그리기 
     plot_roc_curve(f"{save_path}/graph", f"threshold({threshold})", y_true, y_prob)
@@ -158,12 +157,19 @@ if __name__ == "__main__":
     checkpoint_dropout_v2 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_380_model.pth"
     checkpoint_layer4_v1 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_2990_model.pth"
 
-    accuracy, precision, recall, f1 = test(test_loader, args.threshold, checkpoint_layer4_v1)
+    logger.Print(f"You're conducting '{args.model}' model.")
+    checkpoint=""
+    if "original" in args.model:
+        checkpoint = checkpoint_original
+    elif "dropout_v1" in args.model:
+        checkpoint = checkpoint_dropout_v1
+    elif "dropout_v2" in args.model:
+        checkpoint = checkpoint_dropout_v2
+    elif "layer4" in args.model:
+        checkpoint = checkpoint_layer4_v1    
+    logger.Print(f"Weight file is '{checkpoint}'.")
 
-    # ## 그래프 그리기 (사용x)
-    # if not os.path.exists(f'{save_path}/graph'):
-    #     os.makedirs(f'{save_path}/graph')
-    # plot_result(f"{save_path}/graph", threshold, accuracy, precisioin, recall)
+    accuracy, precision, recall, f1 = test(test_loader, args.threshold, checkpoint)
 
     ## 결과 파일 따로 저장 
     logger.Print(f"***** Result (Max Accuracy)")

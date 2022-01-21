@@ -56,19 +56,6 @@ def plot_roc_curve(path, title_info, y_true, y_prob):
 
     return auc_value
 
-# def plot_eval_per_epoch(path, title_info, accuracy, precision, recall, epoch):
-#     fig = plt.figure()
-#     plt.title(f"Accuracy, Precision, Recall - {title_info}")
-#     plt.xlabel("Epoch")
-#     plt.ylabel("Result")
-#     plt.plot(epoch, accuracy, color="red", label="Accuracy")
-#     plt.plot(epoch, precision, color="blue", label="Precision")
-#     plt.plot(epoch, recall, color="green", label="Recall")
-#     plt.legend(loc='upper left')
-#     plt.savefig(path+f'/{title_info}_accuracy_reesult.png')
-#     plt.close(fig)
-
-
 def cal_metrics(y_true, y_pred):
     
     if len(y_true) != len(y_pred):
@@ -87,13 +74,14 @@ def cal_metrics(y_true, y_pred):
     
     return accuracy_cal, precision_cal, recall_cal, f1_cal
 
-def plot_3_kind_data(path, filename, y1, y2, y3):
+def plot_3_kind_data(path, filename, epoch, y1, y2, y3):
+
     x1 = np.arange(1, len(y1)+1, 1)
     x2 = np.arange(1, len(y2)+1, 1)
     x3 = np.arange(1, len(y3)+1, 1)
     
     fig = plt.figure()
-    plt.title(f"Data Distrbution (Light)")
+    plt.title(f"Data Distrbution (Light) - Epoch {epoch}")
     plt.xlabel("Data Number")
     plt.ylabel("MSE Value")
     plt.plot(x1, y1, 'ro', label=f"High Light Data({len(y1)})")
@@ -103,12 +91,12 @@ def plot_3_kind_data(path, filename, y1, y2, y3):
     plt.savefig(path+f'/{filename}.png')
     plt.close(fig)
 
-def plot_real_fake_data(path, filename, y1, y2):
+def plot_real_fake_data(path, filename, epoch, y1, y2):
     x1 = np.arange(1, len(y1)+1, 1)
     x2 = np.arange(1, len(y2)+1, 1)
     
     fig = plt.figure()
-    plt.title(f"Data Distrbution (Real, Fake)")
+    plt.title(f"Data Distrbution (Real, Fake) - Epoch {epoch}")
     plt.xlabel("Data Number")
     plt.ylabel("MSE Value")
     plt.plot(x1, y1, 'bo', label=f"Real Data({len(y1)})")

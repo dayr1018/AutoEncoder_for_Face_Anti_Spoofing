@@ -1,7 +1,7 @@
 import torch
 import time
 import argparse
-from models.Auto_Encoder import Auto_Encoder_Original, Auto_Encoder_Dropout_v1, Auto_Encoder_Dropout_v2, Auto_Encoder_layer4 
+from models.Auto_Encoder_RGB import Auto_Encoder_Original, Auto_Encoder_Dropout, Auto_Encoder_layer4 
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from sklearn.metrics import mean_squared_error
@@ -9,20 +9,31 @@ import numpy as np
 import torch 
 from torch.utils.tensorboard import SummaryWriter
 
-from dataloader.dataloader_RGB import Facedata_Loader
+from ad_dataloader.dataloader_RGB import Facedata_Loader
 from loger import Logger
 from utils import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data
 
 import os
-    
+
+def booltype(str):
+    if isinstance(str, bool):
+        return str
+    if str.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif str.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentError("Boolean value expected")
+
 parser = argparse.ArgumentParser(description='face anto-spoofing')
 parser.add_argument('--batch-size', default='64', type=int, help='train batch size') 
 parser.add_argument('--test-size', default='64', type=int, help='test batch size') 
 parser.add_argument('--save-path', default='../ad_output/RGB/logs/Train/', type=str, help='logs save path')
 parser.add_argument('--checkpoint', default='model.pth', type=str, help='pretrained model checkpoint')
 parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
+parser.add_argument('--model', default='', type=str, help='model directory')
 parser.add_argument('--epochs', default=3000, type=int, help='train epochs')
-parser.add_argument('--train', default=True, type=bool, help='train')
+parser.add_argument('--lowdata', default=True, type=booltype, help='whether low data is included')
 parser.add_argument('--skf', default=0, type=int, help='stratified k-fold')
 args = parser.parse_args()
 
@@ -47,16 +58,15 @@ if not os.path.exists(weight_dir):
 # loss 생성 -> MSE loss 사용
 # 옵티마이저, 스케줄러 생성
 
-if "original" in args.message:
-    model = Auto_Encoder_Original()
-elif "dropout_v1" in args.message:
-    model = Auto_Encoder_Dropout_v1()
-    print("*************** dropout_v1")
-elif "dropout_v2" in args.message:
-    model = Auto_Encoder_Dropout_v2()
-    print("*************** dropout_v2")
-elif "layer" in args.message:
+if "original" in args.model:
+    model = Auto_Encoder_Original()        
+    print("***** You're training 'original' model.")
+elif "dropout" in args.model:
+    model = Auto_Encoder_Dropout()
+    print("***** You're training 'dropout' model.")
+elif "layer4" in args.model:
     model = Auto_Encoder_layer4()
+    print("***** You're training 'layer4' model.")
 
 mse = torch.nn.MSELoss()
 optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=5e-4)
@@ -71,7 +81,6 @@ else:
     print("Something Wrong, Cuda Not Used")
 
 writer = SummaryWriter()
-
 
 def train(epochs, data_loader, valid_loader):
 
@@ -160,7 +169,8 @@ def train(epochs, data_loader, valid_loader):
         if (epoch % 10) == 0 or epoch == (epochs-1):
             # validation 수행
             threshold, accuracy, precision, recall, f1 = valid(valid_loader, epoch, epochs) 
-            
+            print(f"Current Epoch: {epoch}, Accuracy: {accuracy}")
+
             writer.add_scalar("Threshold/Epoch", threshold, epoch)
             writer.add_scalar("Accuracy/Epoch", accuracy, epoch)
             
@@ -171,15 +181,14 @@ def train(epochs, data_loader, valid_loader):
             f1_per_epoch.append(f1)
             epoch_list.append(epoch)
 
-            # Max Accuracy 를 갖는 weight나, 100, 200... 순서 weight들은 저장          
-#            if accuracy == max(accuracy_per_epoch) or (epoch % 100 == 0):
+            # 0, 10, 20, ... 순서대로 weight들 저장   
             checkpoint = f'{weight_dir}/epoch_{epoch}_model.pth'
             torch.save(model.state_dict(), checkpoint)
             
             # 결과 나타내기 
             # high, mid, low 별로 구분해서 데이터분포 그리기 
-            plot_3_kind_data(f"{save_path}", f"Light_Distribution_Epoch_{epoch}_", data_high, data_mid, data_low)
-            plot_real_fake_data(f"{save_path}", f"Mask_Distribution_Epoch_{epoch}_", data_real, data_fake)
+            plot_3_kind_data(f"{save_path}", f"Light_Distribution_Epoch_{epoch}_", epoch, data_high, data_mid, data_low)
+            plot_real_fake_data(f"{save_path}", f"Mask_Distribution_Epoch_{epoch}_", epoch, data_real, data_fake)
 
     # 모든 게 끝났을 때, epoch 이 언제일 때 가장 큰 accuracy를 갖는지 확인 
     accuracy_max = max(accuracy_per_epoch)
@@ -308,15 +317,15 @@ def valid(valid_loader, epoch, epochs):
     threshold_max = threshold[index]
 
     # 데이터 분포도 그래프로 그리기 
-    if (epoch == 0) or (epoch == epochs-1): 
-        plot_3_kind_data(save_path_valid, f"Light_Distribution_Epoch_{epoch}_", data_high, data_mid, data_low)
-        plot_real_fake_data(save_path_valid, f"Mask_Distribution_Epoch_{epoch}_", data_real, data_fake)
+    if (epoch % 10) == 0 or (epoch == epochs-1): 
+        plot_3_kind_data(save_path_valid, f"Light_Distribution_Epoch_{epoch}_", epoch, data_high, data_mid, data_low)
+        plot_real_fake_data(save_path_valid, f"Mask_Distribution_Epoch_{epoch}_", epoch, data_real, data_fake)
 
     return threshold_max, accuracy_max, precision_max, recall_max, f1_max
 
 if __name__ == "__main__":
-    
-    train_loader, valid_loader, _ = Facedata_Loader(train_size=64, test_size=64)
+
+    train_loader, valid_loader, _ = Facedata_Loader(train_size=64, test_size=64, use_lowdata=args.lowdata)
 
     train(args.epochs, train_loader, valid_loader)
 
