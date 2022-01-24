@@ -63,23 +63,40 @@ class Face_Data(Dataset):
         def __len__(self):
             return len(self.rgb_paths)
 
-def Facedata_Loader(train_size=64, test_size=64, use_lowdata=True): 
+def Facedata_Loader(train_size=64, test_size=64, use_lowdata=True, dataset=0): 
     data_transform = transforms.Compose([
         transforms.Resize((128,128)),
         transforms.ToTensor(),
         # transforms.Normalize([0.5,0.5,0.5],[0.5,0.5,0.5])
     ])
 
-    if use_lowdata:
-        train_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/train_data_list.txt', transform=data_transform)
-        valid_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/valid_data_list.txt', transform=data_transform)
-        test_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/test_data_list.txt', transform=data_transform) 
-        print("***** Low data is included to data set")
-    else:
-        train_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/train_data_list_wo_low.txt", transform=data_transform)
-        valid_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/valid_data_list_wo_low.txt", transform=data_transform)
-        test_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/test_data_list_wo_low.txt", transform=data_transform) # test 데이터 세 종류 있음. 
-        print("***** Low data is not included to data set")
+    # 기존 데이터 (trian셋은 동일)
+    if dataset == 0 : 
+        print("***** Data set's type is 0 (original).")
+        if use_lowdata:
+            train_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/train_data_list.txt', transform=data_transform)
+            valid_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/valid_data_list.txt', transform=data_transform)
+            test_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/test_data_list.txt', transform=data_transform) 
+            print("***** Low data is included to data set.")
+        else:
+            train_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/train_data_list_wo_low.txt", transform=data_transform)
+            valid_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/valid_data_list_wo_low.txt", transform=data_transform)
+            test_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/test_data_list_wo_low.txt", transform=data_transform) # test 데이터 세 종류 있음. 
+            print("***** Low data is not included to data set.")
+
+    # 추가된 데이터(trian셋은 동일)
+    elif dataset == 1:
+        print("***** Data set's type is 1 (added otherthings).")
+        if use_lowdata:
+            train_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/train_data_list.txt', transform=data_transform)
+            valid_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/valid_data_list_w_etc.txt', transform=data_transform)
+            test_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/test_data_list_w_etc.txt', transform=data_transform) 
+            print("***** Low data is included to data set")
+        else:
+            train_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/train_data_list_wo_low.txt", transform=data_transform)
+            valid_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/valid_data_list_w_etc_wo_low.txt", transform=data_transform)
+            test_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/test_data_list_w_etc_wo_low.txt", transform=data_transform) # test 데이터 세 종류 있음. 
+            print("***** Low data is not included to data set")
 
     train_loader = DataLoader(dataset=train_data, batch_size=train_size, shuffle=True, num_workers=32)
     valid_loader = DataLoader(dataset=valid_data, batch_size=train_size, shuffle=True, num_workers=32)

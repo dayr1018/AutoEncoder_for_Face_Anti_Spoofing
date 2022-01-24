@@ -3,7 +3,7 @@ import time
 import argparse
 
 from models.Auto_Encoder_RGB import Auto_Encoder_Original, Auto_Encoder_Dropout, Auto_Encoder_layer4
-from dataloader.dataloader_RGB import Facedata_Loader
+from ad_dataloader.dataloader_RGB import Facedata_Loader
 from loger import Logger
 from utils import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data, plot_result, find_max_accuracy
 
@@ -15,16 +15,24 @@ from PIL import Image
 
 import os
 
+def booltype(str):
+    if isinstance(str, bool):
+        return str
+    if str.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif str.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentError("Boolean value expected")
+
 # argument parser
 parser = argparse.ArgumentParser(description='face anto-spoofing')
-parser.add_argument('--batch-size', default='64', type=int, help='train batch size') 
-parser.add_argument('--test-size', default='64', type=int, help='test batch size') 
 parser.add_argument('--save-path', default='../ad_output/RGB/logs/Test/', type=str, help='logs save path')
-parser.add_argument('--checkpoint', default='model.pth', type=str, help='pretrained model checkpoint')
+parser.add_argument('--checkpoint', default='', type=str, help='checkpoint path')
 parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
-parser.add_argument('--model', default='', type=str, help='model directory')
+parser.add_argument('--lowdata', default=True, type=booltype, help='whether low data is included')
+parser.add_argument('--datatype', default=0, type=int, help='data set type')
 parser.add_argument('--threshold', default='', type=int, help='threshold')
-parser.add_argument('--train', default=False, type=bool, help='train')
 parser.add_argument('--skf', default=0, type=int, help='stratified k-fold')
 args = parser.parse_args()
 
@@ -38,20 +46,17 @@ if not os.path.exists(save_path):
 logger = Logger(f'{save_path}/logs.logs')
 logger.Print(time_string + " - " + args.message + "\n")
 
-
 def test(data_loader, threshold, checkpoint):
 
-    if "original" in args.model:
+    if "original" in args.checkpoint:
         model = Auto_Encoder_Original()        
-        print("*****  You're testing 'original' model.")
-    elif "dropout_v1" in args.model:
+        print("***** You're training 'original' model.")
+    elif "dropout" in args.checkpoint:
         model = Auto_Encoder_Dropout()
-        print("*****  You're testing 'dropout' model.")
-    elif "layer4" in args.model:
+        print("***** You're training 'dropout' model.")
+    elif "layer4" in args.checkpoint:
         model = Auto_Encoder_layer4()
-        print("*****  You're testing 'layer4' model.")
-
-    model.eval()
+        print("***** You're training 'layer4' model.")
 
     use_cuda = True if torch.cuda.is_available() else False
     if use_cuda:
@@ -60,6 +65,8 @@ def test(data_loader, threshold, checkpoint):
         model.load_state_dict(torch.load(checkpoint))
     else:
         print("Something Wrong, Cuda Not Used")
+
+    model.eval()
 
     dist=[]
     dist_noblack=[]
@@ -80,25 +87,19 @@ def test(data_loader, threshold, checkpoint):
     for data in data_loader:
 
         rgb_image, label, rgb_path = data
-        
-        if use_cuda:
-            rgb_image = rgb_image.cuda()
-            label = label.cuda()
-        else:
-            print("Something Wrong, Cuda Not Used")
-        
+        rgb_image = rgb_image.cuda()
+        label = label.cuda()
+
         # 모델 태우기 
         recons_image = model(rgb_image)
 
-        # batch 단위로 되어있는 텐서를 넘파이 배열로 전환 후, 픽셀 값(0~255)으로 전환
-        # y_true, y_prod, y_pred 값도 여기서 같이 처리
+        # 모든 데이터에 대한 MSE 구하기 
         for i in range(len(rgb_image)):
             np_image = rgb_image[i].cpu().detach().numpy()
             np_recons_image = recons_image[i].cpu().detach().numpy()
             np_image = np_image * 255
             np_recons_image = np_recons_image * 255
 
-            # mse 구하기 
             diff = []
             for d in range(np_image.shape[0]) :        
                 val = mean_squared_error(np_image[d].flatten(), np_recons_image[d].flatten())
@@ -146,27 +147,24 @@ def test(data_loader, threshold, checkpoint):
 if __name__ == "__main__":
 
     ## Threshold 에 따른 모델 성능 출력 
-    _, _, test_loader = Facedata_Loader(train_size=64, test_size=64)
+    _, _, test_loader = Facedata_Loader(train_size=64, test_size=64, use_lowdata=args.lowdata, dataset=args.datatype)
 
     if args.threshold == '':
         print("--threshold option is required")
-        exit()
+        exit(1)
 
     checkpoint_original = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_1000_model.pth"
-    checkpoint_dropout_v1 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_1370_model.pth"
-    checkpoint_dropout_v2 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_380_model.pth"
-    checkpoint_layer4_v1 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_2990_model.pth"
+    checkpoint_dropout = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_1370_model.pth"
+    checkpoint_layer4 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_2990_model.pth"
 
-    logger.Print(f"You're conducting '{args.model}' model.")
+    logger.Print(f"You're conducting '{args.checkpoint}' weight.")
     checkpoint=""
-    if "original" in args.model:
+    if "original" in args.checkpoint:
         checkpoint = checkpoint_original
-    elif "dropout_v1" in args.model:
-        checkpoint = checkpoint_dropout_v1
-    elif "dropout_v2" in args.model:
-        checkpoint = checkpoint_dropout_v2
-    elif "layer4" in args.model:
-        checkpoint = checkpoint_layer4_v1    
+    elif "dropout" in args.checkpoint:
+        checkpoint = checkpoint_dropout
+    elif "layer4" in args.checkpoint:
+        checkpoint = checkpoint_layer4    
     logger.Print(f"Weight file is '{checkpoint}'.")
 
     accuracy, precision, recall, f1 = test(test_loader, args.threshold, checkpoint)

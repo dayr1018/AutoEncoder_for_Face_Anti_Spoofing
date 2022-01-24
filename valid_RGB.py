@@ -1,7 +1,7 @@
 import torch
 import time
 import argparse
-from models.Auto_Encoder_RGB import Auto_Encoder_Original, Auto_Encoder_Dropout_v1, Auto_Encoder_Dropout_v2, Auto_Encoder_layer4
+from models.Auto_Encoder_RGB import Auto_Encoder_Original, Auto_Encoder_Dropout, Auto_Encoder_layer4
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from sklearn.metrics import mean_squared_error
@@ -18,14 +18,24 @@ import os
 # loss 생성 -> MSE loss 사용
 # 옵티마이저, 스케줄러 생성
 
+def booltype(str):
+    if isinstance(str, bool):
+        return str
+    if str.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif str.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentError("Boolean value expected")
+
 parser = argparse.ArgumentParser(description='face anto-spoofing')
-parser.add_argument('--batch-size', default='64', type=int, help='train batch size') 
-parser.add_argument('--test-size', default='64', type=int, help='test batch size') 
 parser.add_argument('--save-path', default='../ad_output/RGB/logs/Valid/', type=str, help='logs save path')
-parser.add_argument('--checkpoint', default='model.pth', type=str, help='pretrained model checkpoint')
+parser.add_argument('--checkpoint', default='', type=str, help='checkpoint path')
 parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
 parser.add_argument('--model', default='', type=str, help='model directory')
 parser.add_argument('--epochs', default=3000, type=int, help='valid epochs')
+parser.add_argument('--lowdata', default=True, type=booltype, help='whether low data is included')
+parser.add_argument('--datatype', default=0, type=int, help='data set type')
 parser.add_argument('--skf', default=0, type=int, help='stratified k-fold')
 args = parser.parse_args()
 
@@ -33,16 +43,13 @@ time_object = time.localtime(time.time())
 time_string = time.strftime('%Y-%m-%d_%I:%M_%p', time_object)
 
 save_path = args.save_path + f'{args.message}' + '_' + f'{time_string}' 
-save_path_valid = save_path + '/valid'
 if not os.path.exists(save_path):
     os.makedirs(save_path)
-if not os.path.exists(save_path_valid):
-    os.makedirs(save_path_valid)
 
 logger = Logger(f'{save_path}/logs.logs')
 logger.Print(time_string + " - " + args.message + "\n")
 
-weight_dir = f'../ad_output/RGB/checkpoint/old_v3/{args.message}'
+weight_dir = f'../ad_output/RGB/checkpoint/{args.checkpoint}'
 if not os.path.exists(weight_dir):
     os.makedirs(weight_dir)
 
@@ -52,21 +59,17 @@ writer = SummaryWriter()
 # loss 생성 -> MSE loss 사용
 # 옵티마이저, 스케줄러 생성
 
+def valid(valid_loader, epoch, checkpoint):
 
-def valid(valid_loader, epoch, epochs, checkpoint):
-
-    if "original" in args.model:
+    if "original" in args.checkpoint:
         model = Auto_Encoder_Original()        
-        print("*****  You're validating 'original' model.")
-    elif "dropout_v1" in args.model:
-        model = Auto_Encoder_Dropout_v1()
-        print("*****  You're validating 'dropout_v1' model.")
-    elif "dropout_v2" in args.model:
-        model = Auto_Encoder_Dropout_v2()
-        print("*****  You're validating 'dropout_v2' model.")
-    elif "layer4" in args.model:
+        print("***** You're training 'original' model.")
+    elif "dropout" in args.checkpoint:
+        model = Auto_Encoder_Dropout()
+        print("***** You're training 'dropout' model.")
+    elif "layer4" in args.checkpoint:
         model = Auto_Encoder_layer4()
-        print("*****  You're validating 'layer4' model.")
+        print("***** You're training 'layer4' model.")
 
     use_cuda = True if torch.cuda.is_available() else False
     if use_cuda:
@@ -91,46 +94,47 @@ def valid(valid_loader, epoch, epochs, checkpoint):
     data_real = []
     data_fake = []
 
-    for _, data in enumerate(valid_loader):
-        rgb_image, label, rgb_path = data
-        rgb_image = rgb_image.cuda()        
-        label = label.cuda()
+    with torch.no_grad():
+        for _, data in enumerate(valid_loader):
+            rgb_image, label, rgb_path = data
+            rgb_image = rgb_image.cuda()        
+            label = label.cuda()
 
-        recons_image = model(rgb_image)
+            recons_image = model(rgb_image)
 
-        # 모든 데이터에 대한 MSE 구하기 
-        for i in range(len(rgb_image)):
-            np_image = rgb_image[i].cpu().detach().numpy()
-            np_recons_image = recons_image[i].cpu().detach().numpy()
-            np_image = np_image * 255
-            np_recons_image = np_recons_image * 255
+            # 모든 데이터에 대한 MSE 구하기 
+            for i in range(len(rgb_image)):
+                np_image = rgb_image[i].cpu().detach().numpy()
+                np_recons_image = recons_image[i].cpu().detach().numpy()
+                np_image = np_image * 255
+                np_recons_image = np_recons_image * 255
 
-            diff = []
-            for d in range(np_image.shape[0]) :        
-                val = mean_squared_error(np_image[d].flatten(), np_recons_image[d].flatten())
-                diff.append(val)
-            mse_by_sklearn = np.array(diff).mean() 
-            mse.append(mse_by_sklearn)
+                diff = []
+                for d in range(np_image.shape[0]) :        
+                    val = mean_squared_error(np_image[d].flatten(), np_recons_image[d].flatten())
+                    diff.append(val)
+                mse_by_sklearn = np.array(diff).mean() 
+                mse.append(mse_by_sklearn)
 
-            # light 에 따라 데이터 분류하기 
-            path = rgb_path[i].split('/')[-5]
-            if "High" in path:
-                data_high.append(mse_by_sklearn)
-            elif "Mid" in path:
-                data_mid.append(mse_by_sklearn)
-            elif "Low" in path:
-                data_low.append(mse_by_sklearn)
-            else:
-                print("------ Data Classification Error - High, Mid, Low")
+                # light 에 따라 데이터 분류하기 
+                path = rgb_path[i].split('/')[-5]
+                if "High" in path:
+                    data_high.append(mse_by_sklearn)
+                elif "Mid" in path:
+                    data_mid.append(mse_by_sklearn)
+                elif "Low" in path:
+                    data_low.append(mse_by_sklearn)
+                else:
+                    print("------ Data Classification Error - High, Mid, Low")
 
-            # mask 유무에 따라 데이터 분류하기
-            if label[i].item() == 1:
-                data_real.append(mse_by_sklearn)
-            else:
-                data_fake.append(mse_by_sklearn)
+                # mask 유무에 따라 데이터 분류하기
+                if label[i].item() == 1:
+                    data_real.append(mse_by_sklearn)
+                else:
+                    data_fake.append(mse_by_sklearn)
 
-            # y_true 는 넣어.
-            y_true.append(label[i].cpu().detach().numpy())
+                # y_true 는 넣어.
+                y_true.append(label[i].cpu().detach().numpy())
 
     print("------ MSE Caculation Finished")
     logger.Print(f"------ Max MSE: {max(mse)}, Min MSE: {min(mse)}")
@@ -170,15 +174,14 @@ def valid(valid_loader, epoch, epochs, checkpoint):
     threshold_max = threshold[index]
 
     # 데이터 분포도 그래프로 그리기 
-    if (epoch % 10) == 0 or (epoch == epochs-1): 
-        plot_3_kind_data(save_path_valid, f"Light_Distribution_Epoch_{epoch}_", epoch, data_high, data_mid, data_low)
-        plot_real_fake_data(save_path_valid, f"Mask_Distribution_Epoch_{epoch}_", epoch, data_real, data_fake)
+    plot_3_kind_data(save_path, f"Light_Distribution_Epoch_{epoch}_", epoch, data_high, data_mid, data_low)
+    plot_real_fake_data(save_path, f"Mask_Distribution_Epoch_{epoch}_", epoch, data_real, data_fake)
 
-    return threshold_max, accuracy_max, precision_max, recall_max, f1_max, data_high, data_mid, data_low, data_real, data_fake
+    return threshold_max, accuracy_max, precision_max, recall_max, f1_max
 
 if __name__ == "__main__":
 
-    _, valid_loader, _ = Facedata_Loader(train_size=64, test_size=64)
+    _, valid_loader, _ = Facedata_Loader(train_size=64, test_size=64, use_lowdata=args.lowdata, dataset=args.datatype)
 
     threshold_per_epoch = []
     accuracy_per_epoch = []
@@ -191,8 +194,9 @@ if __name__ == "__main__":
        if (epoch % 10) == 0 or epoch == (args.epochs-1):
             # validation 수행
             checkpoint=f"{weight_dir}/epoch_{epoch}_model.pth"
-            threshold, accuracy, precision, recall, f1, data_high, data_mid, data_low, data_real, data_fake = valid(valid_loader, epoch, args.epochs, checkpoint) 
-            
+            threshold, accuracy, precision, recall, f1 = valid(valid_loader, epoch, checkpoint) 
+            logger.Print(f"Current Epoch: {epoch}, Accuracy: {accuracy}")
+
             writer.add_scalar("Threshold/Epoch", threshold, epoch)
             writer.add_scalar("Accuracy/Epoch", accuracy, epoch)
             
@@ -202,11 +206,6 @@ if __name__ == "__main__":
             recall_per_epoch.append(recall)
             f1_per_epoch.append(f1)
             epoch_list.append(epoch)
-            
-            # 결과 나타내기 
-            # high, mid, low 별로 구분해서 데이터분포 그리기 
-            plot_3_kind_data(f"{save_path}", f"Light_Distribution_Epoch_{epoch}_", epoch, data_high, data_mid, data_low)
-            plot_real_fake_data(f"{save_path}", f"Mask_Distribution_Epoch_{epoch}_", epoch, data_real, data_fake)
 
     # 모든 게 끝났을 때, epoch 이 언제일 때 가장 큰 accuracy를 갖는지 확인 
     accuracy_max = max(accuracy_per_epoch)

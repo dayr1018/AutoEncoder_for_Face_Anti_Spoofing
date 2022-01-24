@@ -26,8 +26,6 @@ def booltype(str):
         raise argparse.ArgumentError("Boolean value expected")
 
 parser = argparse.ArgumentParser(description='face anto-spoofing')
-parser.add_argument('--batch-size', default='64', type=int, help='train batch size') 
-parser.add_argument('--test-size', default='64', type=int, help='test batch size') 
 parser.add_argument('--save-path', default='../ad_output/RGB/logs/Train/', type=str, help='logs save path')
 parser.add_argument('--checkpoint', default='model.pth', type=str, help='pretrained model checkpoint')
 parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
@@ -169,7 +167,7 @@ def train(epochs, data_loader, valid_loader):
         if (epoch % 10) == 0 or epoch == (epochs-1):
             # validation 수행
             threshold, accuracy, precision, recall, f1 = valid(valid_loader, epoch, epochs) 
-            print(f"Current Epoch: {epoch}, Accuracy: {accuracy}")
+            logger.Print(f"Current Epoch: {epoch}, Accuracy: {accuracy}")
 
             writer.add_scalar("Threshold/Epoch", threshold, epoch)
             writer.add_scalar("Accuracy/Epoch", accuracy, epoch)
@@ -237,6 +235,7 @@ def valid(valid_loader, epoch, epochs):
     
     data_real = []
     data_fake = []
+
 
     for _, data in enumerate(valid_loader):
         rgb_image, label, rgb_path = data

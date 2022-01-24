@@ -1,7 +1,7 @@
 import torch
 import time
 import argparse
-from models.Auto_Encoder_RGB_Depth import Auto_Encoder_Depth_v1
+from models.Auto_Encoder_RGB_Depth import Auto_Encoder_Depth_v1, Auto_Encoder_Depth_v2
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from sklearn.metrics import mean_squared_error
@@ -26,8 +26,6 @@ def booltype(str):
         raise argparse.ArgumentError("Boolean value expected")
 
 parser = argparse.ArgumentParser(description='face anto-spoofing')
-parser.add_argument('--batch-size', default='64', type=int, help='train batch size') 
-parser.add_argument('--test-size', default='64', type=int, help='test batch size') 
 parser.add_argument('--save-path', default='../ad_output/RGB_Depth/logs/Train/', type=str, help='logs save path')
 parser.add_argument('--checkpoint', default='model.pth', type=str, help='pretrained model checkpoint')
 parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
@@ -61,6 +59,9 @@ if not os.path.exists(weight_dir):
 if "depth_v1" in args.model:
     model = Auto_Encoder_Depth_v1()
     print("**** You're training 'depth_v1' model.")
+elif "depth_v2" in args.model:
+    model = Auto_Encoder_Depth_v2()
+    print("**** You're training 'depth_v2' model.")
 
 mse = torch.nn.MSELoss()
 optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=5e-4)
@@ -117,9 +118,15 @@ def train(epochs, data_loader, valid_loader):
 
             # 모델 태우기 
             recons_image = model(input_image)
+
+            # depth 모델에 따라 기준 input 달라짐 (v1: 4channel, v2: 3channel)
+            if "depth_v1" in args.model:
+                init_image = input_image
+            elif "depth_v2" in args.model:
+                init_image = rgb_image
             
             # loss 불러오기
-            loss = mse(input_image, recons_image)
+            loss = mse(init_image, recons_image)
 
             # 역전파
             optimizer.zero_grad()
@@ -134,8 +141,8 @@ def train(epochs, data_loader, valid_loader):
                 logger.Print(f"***** loss: {loss:>7f}  [{current:>5d}/{size:>5d}] [{batch}:{len(data[0])}]")
 
             # batch 단위로 되어있는 텐서를 넘파이 배열로 전환 후, 픽셀 값(0~255)으로 전환
-            for i in range(len(input_image)):
-                np_image = input_image[i].cpu().detach().numpy()
+            for i in range(len(init_image)):
+                np_image = init_image[i].cpu().detach().numpy()
                 np_recons_image = recons_image[i].cpu().detach().numpy()
                 np_image = np_image * 255
                 np_recons_image = np_recons_image * 255
@@ -167,7 +174,7 @@ def train(epochs, data_loader, valid_loader):
         if (epoch % 10) == 0 or epoch == (epochs-1):
             # validation 수행
             threshold, accuracy, precision, recall, f1 = valid(valid_loader, epoch, epochs) 
-            print(f"Current Epoch: {epoch}, Accuracy: {accuracy}")
+            logger.Print(f"Current Epoch: {epoch}, Accuracy: {accuracy}")
             
             writer.add_scalar("Threshold/Epoch", threshold, epoch)
             writer.add_scalar("Accuracy/Epoch", accuracy, epoch)
@@ -235,7 +242,7 @@ def valid(valid_loader, epoch, epochs):
     
     data_real = []
     data_fake = []
-
+    
     for _, data in enumerate(valid_loader):
         rgb_image, depth_image, label, rgb_path = data
         rgb_image = rgb_image.cuda()        
@@ -245,11 +252,18 @@ def valid(valid_loader, epoch, epochs):
         # RGB, Depth 합치기 
         input_image = torch.cat((rgb_image, depth_image), dim=1)
 
+        # 모델 태우기
         recons_image = model(input_image)
 
+        # depth 모델에 따라 기준 input 달라짐 (v1: 4channel, v2: 3channel)
+        if "depth_v1" in args.model:
+            init_image = input_image
+        elif "depth_v2" in args.model:
+            init_image = rgb_image
+
         # 모든 데이터에 대한 MSE 구하기 
-        for i in range(len(input_image)):
-            np_image = input_image[i].cpu().detach().numpy()
+        for i in range(len(init_image)):
+            np_image = init_image[i].cpu().detach().numpy()
             np_recons_image = recons_image[i].cpu().detach().numpy()
             np_image = np_image * 255
             np_recons_image = np_recons_image * 255
