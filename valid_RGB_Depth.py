@@ -2,8 +2,6 @@ import torch
 import time
 import argparse
 from models.Auto_Encoder_RGB_Depth import Auto_Encoder_Depth_v1, Auto_Encoder_Depth_v2
-import torch.optim as optim
-from torch.optim import lr_scheduler
 from sklearn.metrics import mean_squared_error
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
@@ -29,10 +27,9 @@ def booltype(str):
         raise argparse.ArgumentError("Boolean value expected")
 
 parser = argparse.ArgumentParser(description='face anto-spoofing')
-parser.add_argument('--save-path', default='../ad_output/RGB_Depth/logs/Valid/', type=str, help='logs save path')
+parser.add_argument('--save-path', default='../ad_output/logs/Valid/', type=str, help='logs save path')
 parser.add_argument('--checkpoint', default='', type=str, help='checkpoint path')
 parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
-parser.add_argument('--model', default='', type=str, help='model directory')
 parser.add_argument('--epochs', default=3000, type=int, help='valid epochs')
 parser.add_argument('--lowdata', default=True, type=booltype, help='whether low data is included')
 parser.add_argument('--datatype', default=0, type=int, help='data set type')
@@ -49,16 +46,11 @@ if not os.path.exists(save_path):
 logger = Logger(f'{save_path}/logs.logs')
 logger.Print(time_string + " - " + args.message + "\n")
 
-weight_dir = f'../ad_output/RGB_Depth/checkpoint/{args.checkpoint}'
+weight_dir = f'../ad_output/checkpoint/{args.checkpoint}'
 if not os.path.exists(weight_dir):
     os.makedirs(weight_dir)
 
 writer = SummaryWriter()
-
-# 모델 생성
-# loss 생성 -> MSE loss 사용
-# 옵티마이저, 스케줄러 생성
-
 
 def valid(valid_loader, epoch, checkpoint):
 
@@ -102,6 +94,7 @@ def valid(valid_loader, epoch, checkpoint):
             # RGB, Depth 합치기 
             input_image = torch.cat((rgb_image, depth_image), dim=1)
 
+            # 모델 태우기 
             recons_image = model(input_image)
 
             # depth 모델에 따라 기준 input 달라짐 (v1: 4channel, v2: 3channel)

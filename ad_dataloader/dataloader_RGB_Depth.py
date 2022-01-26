@@ -50,7 +50,7 @@ class Face_Data(Dataset):
             rgb_path = self.rgb_paths[index]
             depth_path = self.depth_paths[index]
             rgb_img = Image.open(rgb_path).convert('RGB')
-            depth_img = Image.open(depth_path).convert('L')
+            depth_img = Image.open(depth_path).convert('RGB')
 
             if self.transform is not None:
                 rgb_img = self.transform(rgb_img)

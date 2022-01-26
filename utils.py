@@ -105,6 +105,14 @@ def plot_real_fake_data(path, filename, epoch, y1, y2):
     plt.savefig(path+f'/{filename}.png')
     plt.close(fig)
 
+def plot_histogram(path, filename, epoch, real, fake):
+    fig = plt.figure()
+    plt.title(f"Histogram (Real, Fake) - Epoch {epoch}")
+    plt.hist((real, fake), label=('real', 'fake'))    
+    plt.legend(loc='upper right', fontsize='x-small')
+    plt.savefig(path+f'/{filename}.png')
+    plt.close(fig)
+
 def plot_result(path, x, y1, y2, y3):
 
     # x : threshold

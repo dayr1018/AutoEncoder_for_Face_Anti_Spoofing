@@ -1,7 +1,8 @@
 import torch
 import time
+from datetime import datetime
 import argparse
-from models.Auto_Encoder_RGB_Depth import Auto_Encoder_Depth_v1, Auto_Encoder_Depth_v2
+from models.Auto_Encoder_RGB_Depth import Auto_Encoder_Depth_v1, Auto_Encoder_Depth_v2, Auto_Encoder_Depth_v3, Auto_Encoder_Depth_v4
 import torch.optim as optim
 from torch.optim import lr_scheduler
 from sklearn.metrics import mean_squared_error
@@ -11,7 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from ad_dataloader.dataloader_RGB_Depth import Facedata_Loader
 from loger import Logger
-from utils import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data
+from utils import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data, plot_histogram
 
 import os
 
@@ -26,7 +27,7 @@ def booltype(str):
         raise argparse.ArgumentError("Boolean value expected")
 
 parser = argparse.ArgumentParser(description='face anto-spoofing')
-parser.add_argument('--save-path', default='../ad_output/RGB_Depth/logs/Train/', type=str, help='logs save path')
+parser.add_argument('--save-path', default='../ad_output/logs/Train/', type=str, help='logs save path')
 parser.add_argument('--checkpoint', default='model.pth', type=str, help='pretrained model checkpoint')
 parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
 parser.add_argument('--model', default='', type=str, help='model directory')
@@ -48,7 +49,7 @@ if not os.path.exists(save_path_valid):
 logger = Logger(f'{save_path}/logs.logs')
 logger.Print(time_string + " - " + args.message + "\n")
 
-weight_dir = f'../ad_output/RGB_Depth/checkpoint/{args.message}'
+weight_dir = f'../ad_output/checkpoint/{args.message}'
 if not os.path.exists(weight_dir):
     os.makedirs(weight_dir)
 
@@ -62,22 +63,27 @@ if "depth_v1" in args.model:
 elif "depth_v2" in args.model:
     model = Auto_Encoder_Depth_v2()
     print("**** You're training 'depth_v2' model.")
+elif "depth_v3" in args.model:
+    model = Auto_Encoder_Depth_v3()
+    print("**** You're training 'depth_v3' model.")
+elif "depth_v4" in args.model:
+    model = Auto_Encoder_Depth_v4()
+    print("**** You're training 'depth_v4' model.")
 
 mse = torch.nn.MSELoss()
 optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9, weight_decay=5e-4)
 scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
 
 use_cuda = True if torch.cuda.is_available() else False
-if use_cuda:
-    model = torch.nn.DataParallel(model, device_ids=list(range(torch.cuda.device_count()))) #  device_ids=[0, 1, 2]
-    model.cuda()
-    mse.cuda()
-else:
-    print("Something Wrong, Cuda Not Used")
+if use_cuda : 
+    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+    model.to(device)
+    print('device :', device)
 
 writer = SummaryWriter()
 
 def train(epochs, data_loader, valid_loader):
+    start = datetime.now()
 
     model.train()
 
@@ -107,26 +113,36 @@ def train(epochs, data_loader, valid_loader):
             rgb_image, depth_image, label, rgb_path = data
             
             if use_cuda:
-                rgb_image = rgb_image.cuda()
-                depth_image = depth_image.cuda()
-                label = label.cuda()
+                rgb_image = rgb_image.to(device)
+                depth_image = depth_image.to(device)
+                label = label.to(device)
             else:
                 print("Something Wrong, Cuda Not Used")
 
-            # RGB, Depth 합치기 
-            input_image = torch.cat((rgb_image, depth_image), dim=1)
 
+            # RGB, Depth 합치기
+            # input_image = torch.cat((rgb_image, depth_image), dim=1) 
+            
             # 모델 태우기 
-            recons_image = model(input_image)
+            # recons_rgb, recons_depth = model(rgb_image, depth_image)
+            # recons_image = model(input_image)
+            recons_image = model(depth_image)
 
-            # depth 모델에 따라 기준 input 달라짐 (v1: 4channel, v2: 3channel)
-            if "depth_v1" in args.model:
-                init_image = input_image
-            elif "depth_v2" in args.model:
-                init_image = rgb_image
+            # # depth 모델에 따라 기준 input 달라짐 (v1: 4channel, v2: 3channel)
+            # if "depth_v1" in args.model:
+            #     init_image = input_image
+            # elif "depth_v2" in args.model:
+            #     init_image = rgb_image
+            # elif "depth_v3" in args.model:
+            #     init_image = depth_image
+
             
             # loss 불러오기
-            loss = mse(init_image, recons_image)
+            # rgb_loss = mse(rgb_image, recons_rgb)
+            # depth_loss = mse(depth_image, recons_depth)
+            # lamda = 0.3
+            # loss = lamda * rgb_loss + depth_loss
+            loss = mse(depth_image, recons_image)
 
             # 역전파
             optimizer.zero_grad()
@@ -135,14 +151,12 @@ def train(epochs, data_loader, valid_loader):
 
             writer.add_scalar("Loss/Epoch", loss, epoch)
 
-            # loss 출력
-            if batch % 10 == 0:
-                loss, current = loss.item(), batch * len(data[0])
-                logger.Print(f"***** loss: {loss:>7f}  [{current:>5d}/{size:>5d}] [{batch}:{len(data[0])}]")
-
             # batch 단위로 되어있는 텐서를 넘파이 배열로 전환 후, 픽셀 값(0~255)으로 전환
-            for i in range(len(init_image)):
-                np_image = init_image[i].cpu().detach().numpy()
+            red = []
+            green = []
+            blue = []
+            for i in range(len(depth_image)):
+                np_image = depth_image[i].cpu().detach().numpy()
                 np_recons_image = recons_image[i].cpu().detach().numpy()
                 np_image = np_image * 255
                 np_recons_image = np_recons_image * 255
@@ -151,6 +165,13 @@ def train(epochs, data_loader, valid_loader):
                 diff = []
                 for d in range(np_image.shape[0]) :        
                     val = mean_squared_error(np_image[d].flatten(), np_recons_image[d].flatten())
+                    temp = mean_squared_error((np_image/255)[d].flatten(), (np_recons_image/255)[d].flatten())
+                    if d == 0:
+                        red.append(temp)
+                    elif d == 1:
+                        green.append(temp)
+                    elif d == 2:
+                        blue.append(temp)
                     diff.append(val)
                 mse_by_sklearn = np.array(diff).mean()   
 
@@ -170,6 +191,13 @@ def train(epochs, data_loader, valid_loader):
                     data_real.append(mse_by_sklearn)
                 else:
                     data_fake.append(mse_by_sklearn)
+
+            # loss 출력 & 채널별 mse 총합 출력 
+            if batch % 10 == 0:
+                loss, current = loss.item(), batch * len(data[0])
+                logger.Print(f"***** loss: {loss:>7f}  [{current:>5d}/{size:>5d}] [{batch}:{len(data[0])}]")
+                logger.Print(f"***** total: {np.array(red+green+blue).mean():3f}")
+                logger.Print(f"***** red: {np.array(red).mean():3f}, green: {np.array(green).mean():3f}, blue: {np.array(blue).mean():3f}")
 
         if (epoch % 10) == 0 or epoch == (epochs-1):
             # validation 수행
@@ -194,6 +222,7 @@ def train(epochs, data_loader, valid_loader):
             # high, mid, low 별로 구분해서 데이터분포 그리기 
             plot_3_kind_data(f"{save_path}", f"Light_Distribution_Epoch_{epoch}", epoch, data_high, data_mid, data_low)
             plot_real_fake_data(f"{save_path}", f"Mask_Distribution_Epoch_{epoch}", epoch, data_real, data_fake)
+            plot_histogram(f"{save_path}", f"Train_Historgram_{epoch}_", epoch, data_real, data_fake)
 
     # 모든 게 끝났을 때, epoch 이 언제일 때 가장 큰 accuracy를 갖는지 확인 
     accuracy_max = max(accuracy_per_epoch)
@@ -203,6 +232,8 @@ def train(epochs, data_loader, valid_loader):
     recall_max = recall_per_epoch[index]
     f1_max = f1_per_epoch[index]
     epoch_max = epoch_list[index]
+
+    print('Total running time : ',str(datetime.now()-start)[:7])
 
     logger.Print(f"***** Total Threshold per epoch")
     logger.Print(threshold_per_epoch)
@@ -245,25 +276,28 @@ def valid(valid_loader, epoch, epochs):
     
     for _, data in enumerate(valid_loader):
         rgb_image, depth_image, label, rgb_path = data
-        rgb_image = rgb_image.cuda()        
-        depth_image = depth_image.cuda()
-        label = label.cuda()
+        rgb_image = rgb_image.to(device)        
+        depth_image = depth_image.to(device)
+        label = label.to(device)
 
         # RGB, Depth 합치기 
-        input_image = torch.cat((rgb_image, depth_image), dim=1)
+        # input_image = torch.cat((rgb_image, depth_image), dim=1)
 
         # 모델 태우기
-        recons_image = model(input_image)
-
+        # recons_image = model(input_image)
+        recons_image = model(depth_image)
+        
         # depth 모델에 따라 기준 input 달라짐 (v1: 4channel, v2: 3channel)
-        if "depth_v1" in args.model:
-            init_image = input_image
-        elif "depth_v2" in args.model:
-            init_image = rgb_image
+        # if "depth_v1" in args.model:
+        #     init_image = input_image
+        # elif "depth_v2" in args.model:
+        #     init_image = rgb_image
+        # elif "depth_v3" in args.model:
+        #     init_image = depth_image
 
         # 모든 데이터에 대한 MSE 구하기 
-        for i in range(len(init_image)):
-            np_image = init_image[i].cpu().detach().numpy()
+        for i in range(len(depth_image)):
+            np_image = depth_image[i].cpu().detach().numpy()
             np_recons_image = recons_image[i].cpu().detach().numpy()
             np_image = np_image * 255
             np_recons_image = np_recons_image * 255
@@ -336,6 +370,7 @@ def valid(valid_loader, epoch, epochs):
     if (epoch % 10 == 0) or (epoch == epochs-1): 
         plot_3_kind_data(save_path_valid, f"Light_Distribution_Epoch_{epoch}", epoch, data_high, data_mid, data_low)
         plot_real_fake_data(save_path_valid, f"Mask_Distribution_Epoch_{epoch}", epoch, data_real, data_fake)
+        plot_histogram(f"{save_path_valid}", f"Valid_Historgram_{epoch}_", epoch, data_real, data_fake)
 
     return threshold_max, accuracy_max, precision_max, recall_max, f1_max
 

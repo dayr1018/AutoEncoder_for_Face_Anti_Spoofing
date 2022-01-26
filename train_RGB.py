@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from ad_dataloader.dataloader_RGB import Facedata_Loader
 from loger import Logger
-from utils import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data
+from utils import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data, plot_histogram
 
 import os
 
@@ -26,7 +26,7 @@ def booltype(str):
         raise argparse.ArgumentError("Boolean value expected")
 
 parser = argparse.ArgumentParser(description='face anto-spoofing')
-parser.add_argument('--save-path', default='../ad_output/RGB/logs/Train/', type=str, help='logs save path')
+parser.add_argument('--save-path', default='../ad_output/logs/Train/', type=str, help='logs save path')
 parser.add_argument('--checkpoint', default='model.pth', type=str, help='pretrained model checkpoint')
 parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
 parser.add_argument('--model', default='', type=str, help='model directory')
@@ -48,7 +48,7 @@ if not os.path.exists(save_path_valid):
 logger = Logger(f'{save_path}/logs.logs')
 logger.Print(time_string + " - " + args.message + "\n")
 
-weight_dir = f'../ad_output/RGB/checkpoint/{args.message}'
+weight_dir = f'../ad_output/checkpoint/{args.message}'
 if not os.path.exists(weight_dir):
     os.makedirs(weight_dir)
 
@@ -187,6 +187,7 @@ def train(epochs, data_loader, valid_loader):
             # high, mid, low 별로 구분해서 데이터분포 그리기 
             plot_3_kind_data(f"{save_path}", f"Light_Distribution_Epoch_{epoch}_", epoch, data_high, data_mid, data_low)
             plot_real_fake_data(f"{save_path}", f"Mask_Distribution_Epoch_{epoch}_", epoch, data_real, data_fake)
+            plot_histogram(f"{save_path}", f"Historgram_{epoch}_", epoch, data_real, data_fake)
 
     # 모든 게 끝났을 때, epoch 이 언제일 때 가장 큰 accuracy를 갖는지 확인 
     accuracy_max = max(accuracy_per_epoch)

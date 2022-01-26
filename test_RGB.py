@@ -27,7 +27,7 @@ def booltype(str):
 
 # argument parser
 parser = argparse.ArgumentParser(description='face anto-spoofing')
-parser.add_argument('--save-path', default='../ad_output/RGB/logs/Test/', type=str, help='logs save path')
+parser.add_argument('--save-path', default='../ad_output/logs/Test/', type=str, help='logs save path')
 parser.add_argument('--checkpoint', default='', type=str, help='checkpoint path')
 parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
 parser.add_argument('--lowdata', default=True, type=booltype, help='whether low data is included')
@@ -68,9 +68,6 @@ def test(data_loader, threshold, checkpoint):
 
     model.eval()
 
-    dist=[]
-    dist_noblack=[]
-
     y_true = []
     y_prob = []
     y_pred = []
@@ -84,52 +81,53 @@ def test(data_loader, threshold, checkpoint):
 
     logger.Print(f"***** << Test threshold({threshold}) >>")  
 
-    for data in data_loader:
+    with torch.no_grad():
+        for data in data_loader:
 
-        rgb_image, label, rgb_path = data
-        rgb_image = rgb_image.cuda()
-        label = label.cuda()
+            rgb_image, label, rgb_path = data
+            rgb_image = rgb_image.cuda()
+            label = label.cuda()
 
-        # 모델 태우기 
-        recons_image = model(rgb_image)
+            # 모델 태우기 
+            recons_image = model(rgb_image)
 
-        # 모든 데이터에 대한 MSE 구하기 
-        for i in range(len(rgb_image)):
-            np_image = rgb_image[i].cpu().detach().numpy()
-            np_recons_image = recons_image[i].cpu().detach().numpy()
-            np_image = np_image * 255
-            np_recons_image = np_recons_image * 255
+            # 모든 데이터에 대한 MSE 구하기 
+            for i in range(len(rgb_image)):
+                np_image = rgb_image[i].cpu().detach().numpy()
+                np_recons_image = recons_image[i].cpu().detach().numpy()
+                np_image = np_image * 255
+                np_recons_image = np_recons_image * 255
 
-            diff = []
-            for d in range(np_image.shape[0]) :        
-                val = mean_squared_error(np_image[d].flatten(), np_recons_image[d].flatten())
-                diff.append(val)
-            mse_by_sklearn = np.array(diff).mean()
+                diff = []
+                for d in range(np_image.shape[0]) :        
+                    val = mean_squared_error(np_image[d].flatten(), np_recons_image[d].flatten())
+                    diff.append(val)
+                mse_by_sklearn = np.array(diff).mean()
 
-            # light 에 따라 데이터 분류하기 
-            path = rgb_path[i].split('/')[-5]
-            if "High" in path:
-                data_high.append(mse_by_sklearn)
-            elif "Mid" in path:
-                data_mid.append(mse_by_sklearn)
-            elif "Low" in path:
-                data_low.append(mse_by_sklearn)
-            else:
-                print("Data Classification Error - High, Mid, Low")
+                # light 에 따라 데이터 분류하기 
+                path = rgb_path[i].split('/')[-5]
+                if "High" in path:
+                    data_high.append(mse_by_sklearn)
+                elif "Mid" in path:
+                    data_mid.append(mse_by_sklearn)
+                elif "Low" in path:
+                    data_low.append(mse_by_sklearn)
+                else:
+                    print("Data Classification Error - High, Mid, Low")
 
-            # mask 유무에 따라 데이터 분류하기
-            if label[i].item() == 1:
-                data_real.append(mse_by_sklearn)
-            else:
-                data_fake.append(mse_by_sklearn)
+                # mask 유무에 따라 데이터 분류하기
+                if label[i].item() == 1:
+                    data_real.append(mse_by_sklearn)
+                else:
+                    data_fake.append(mse_by_sklearn)
 
-            # 모델 결과값 
-            y_true.append(label[i].cpu().detach().numpy())
-            y_prob.append(mse_by_sklearn)
-            if mse_by_sklearn < threshold:
-                y_pred.append(1)
-            else:
-                y_pred.append(0)
+                # 모델 결과값 
+                y_true.append(label[i].cpu().detach().numpy())
+                y_prob.append(mse_by_sklearn)
+                if mse_by_sklearn < threshold:
+                    y_pred.append(1)
+                else:
+                    y_pred.append(0)
                 
     # light, mask유무 에 따른 데이터분포 그리기
     if not os.path.exists(f'{save_path}/graph'):
@@ -153,18 +151,38 @@ if __name__ == "__main__":
         print("--threshold option is required")
         exit(1)
 
-    checkpoint_original = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_1000_model.pth"
-    checkpoint_dropout = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_1370_model.pth"
-    checkpoint_layer4 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.model}/epoch_2990_model.pth"
+    checkpoint_original_wlow_0 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_2730_model.pth"
+    checkpoint_original_wolow_0 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_0_model.pth"
+    checkpoint_dropout_wlow_0 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_690_model.pth"
+    checkpoint_dropout_wolow_0 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_2020_model.pth"
+
+    checkpoint_original_wlow_1 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_440_model.pth"
+    checkpoint_original_wolow_1 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_0_model.pth"
+    checkpoint_dropout_wlow_1 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_970_model.pth"
+    checkpoint_dropout_wolow_1 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_150_model.pth"
+    # checkpoint_layer4 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_2990_model.pth"
 
     logger.Print(f"You're conducting '{args.checkpoint}' weight.")
     checkpoint=""
-    if "original" in args.checkpoint:
-        checkpoint = checkpoint_original
-    elif "dropout" in args.checkpoint:
-        checkpoint = checkpoint_dropout
-    elif "layer4" in args.checkpoint:
-        checkpoint = checkpoint_layer4    
+
+    if args.datatype == 0 :
+        if "original_w_low" in args.checkpoint:
+            checkpoint = checkpoint_original_wlow_0
+        elif "original_wo_low" in args.checkpoint:
+            checkpoint = checkpoint_original_wolow_0
+        elif "dropout_w_low" in args.checkpoint:
+            checkpoint = checkpoint_dropout_wlow_0
+        elif "dropout_wo_low" in args.checkpoint:
+            checkpoint = checkpoint_dropout_wolow_0   
+    elif args.datatype == 1 :
+        if "original_w_low" in args.checkpoint:
+            checkpoint = checkpoint_original_wlow_1
+        elif "original_wo_low" in args.checkpoint:
+            checkpoint = checkpoint_original_wolow_1
+        elif "dropout_w_low" in args.checkpoint:
+            checkpoint = checkpoint_dropout_wlow_1
+        elif "dropout_wo_low" in args.checkpoint:
+            checkpoint = checkpoint_dropout_wolow_1
     logger.Print(f"Weight file is '{checkpoint}'.")
 
     accuracy, precision, recall, f1 = test(test_loader, args.threshold, checkpoint)
