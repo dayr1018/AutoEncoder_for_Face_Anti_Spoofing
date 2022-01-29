@@ -5,9 +5,11 @@ import torch.nn as nn
 # Conv2         16 x 16 x 32 (32=conv2's kernel number)
 # Conv3         8 x 8 x 64   (64=conv3's kernel number)
 
-class Auto_Encoder_Original(nn.Module):
+dropout_rate = 0.5
+
+class AutoEncoder_Original(nn.Module):
     def __init__(self):
-        super(Auto_Encoder_Original, self).__init__()
+        super(AutoEncoder_Original, self).__init__()
 
         self.encoder = nn.Sequential(         
             # layer 1
@@ -42,11 +44,11 @@ class Auto_Encoder_Original(nn.Module):
       
         return out
                 
-class Auto_Encoder_Dropout(nn.Module):
+class AutoEncoder_Dropout(nn.Module):
     def __init__(self):
-        super(Auto_Encoder_Dropout, self).__init__()
+        super(AutoEncoder_Dropout, self).__init__()
 
-        self.dropout_layer = nn.Dropout2d(0.5)
+        self.dropout_layer = nn.Dropout2d(dropout_rate)
 
         self.encoder = nn.Sequential(         
             # layer 1
@@ -85,16 +87,17 @@ class Auto_Encoder_Dropout(nn.Module):
 
         x = self.dropout_layer(x)
         latent = self.encoder(x)
+        latent = self.dropout_layer(latent)
         out = self.decoder(latent)
       
         return out
                 
 
-class Auto_Encoder_layer4(nn.Module):
+class AutoEncoder_layer4(nn.Module):
     def __init__(self):
-        super(Auto_Encoder_layer4, self).__init__()
+        super(AutoEncoder_layer4, self).__init__()
 
-        self.dropout_layer = nn.Dropout2d(0.1)
+        self.dropout_layer = nn.Dropout2d(dropout_rate)
 
         self.encoder = nn.Sequential(         
             # layer 1
@@ -142,6 +145,7 @@ class Auto_Encoder_layer4(nn.Module):
 
         x = self.dropout_layer(x)
         latent = self.encoder(x)
+        latent = self.dropout_layer(latent)
         out = self.decoder(latent)
       
         return out

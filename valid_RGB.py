@@ -1,14 +1,14 @@
 import torch
 import time
 import argparse
-from models.Auto_Encoder_RGB import Auto_Encoder_Original, Auto_Encoder_Dropout, Auto_Encoder_layer4
+from models.Auto_Encoder_RGB import AutoEncoder_Original, AutoEncoder_Dropout
 from sklearn.metrics import mean_squared_error
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
 from ad_dataloader.dataloader_RGB import Facedata_Loader
 from loger import Logger
-from utils import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data
+from utility import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data, plot_histogram
 
 import os
 
@@ -27,7 +27,8 @@ parser = argparse.ArgumentParser(description='face anto-spoofing')
 parser.add_argument('--save-path', default='../ad_output/logs/Valid/', type=str, help='logs save path')
 parser.add_argument('--checkpoint', default='', type=str, help='checkpoint path')
 parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
-parser.add_argument('--epochs', default=3000, type=int, help='valid epochs')
+parser.add_argument('--model', default='', type=str, help='model')
+parser.add_argument('--epochs', default=3000, type=int, help='epochs')
 parser.add_argument('--lowdata', default=True, type=booltype, help='whether low data is included')
 parser.add_argument('--datatype', default=0, type=int, help='data set type')
 parser.add_argument('--skf', default=0, type=int, help='stratified k-fold')
@@ -47,32 +48,28 @@ weight_dir = f'../ad_output/checkpoint/{args.checkpoint}'
 if not os.path.exists(weight_dir):
     os.makedirs(weight_dir)
 
-writer = SummaryWriter()
+writer = SummaryWriter(f"runs/{args.message}")
 
 def valid(valid_loader, epoch, checkpoint):
 
-    if "original" in args.checkpoint:
-        model = Auto_Encoder_Original()        
+    if "original" in args.model:
+        model = AutoEncoder_Original()        
         print("***** You're training 'original' model.")
-    elif "dropout" in args.checkpoint:
-        model = Auto_Encoder_Dropout()
+    elif "dropout" in args.model:
+        model = AutoEncoder_Dropout()
         print("***** You're training 'dropout' model.")
-    elif "layer4" in args.checkpoint:
-        model = Auto_Encoder_layer4()
-        print("***** You're training 'layer4' model.")
 
     use_cuda = True if torch.cuda.is_available() else False
     if use_cuda:
-        model = torch.nn.DataParallel(model, device_ids=list(range(torch.cuda.device_count()))) #  device_ids=[0, 1, 2]
-        model.cuda()
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        model.to(device)
+        print('device :', device)
         model.load_state_dict(torch.load(checkpoint))
-    else:
-        print("Something Wrong, Cuda Not Used")
 
     model.eval()
 
     # 1. 전체 데이터에 대한 MSE 구하기 
-    mse = []
+    mse_list = []
 
     y_true = []
     # y_pred = []
@@ -87,8 +84,8 @@ def valid(valid_loader, epoch, checkpoint):
     with torch.no_grad():
         for _, data in enumerate(valid_loader):
             rgb_image, label, rgb_path = data
-            rgb_image = rgb_image.cuda()        
-            label = label.cuda()
+            rgb_image = rgb_image.to(device)      
+            label = label.to(device)
 
             recons_image = model(rgb_image)
 
@@ -96,15 +93,14 @@ def valid(valid_loader, epoch, checkpoint):
             for i in range(len(rgb_image)):
                 np_image = rgb_image[i].cpu().detach().numpy()
                 np_recons_image = recons_image[i].cpu().detach().numpy()
-                np_image = np_image * 255
-                np_recons_image = np_recons_image * 255
 
                 diff = []
                 for d in range(np_image.shape[0]) :        
                     val = mean_squared_error(np_image[d].flatten(), np_recons_image[d].flatten())
+                    val = 128 * 128 * val
                     diff.append(val)
-                mse_by_sklearn = np.array(diff).mean() 
-                mse.append(mse_by_sklearn)
+                mse_by_sklearn = np.array(diff).sum() 
+                mse_list.append(mse_by_sklearn)
 
                 # light 에 따라 데이터 분류하기 
                 path = rgb_path[i].split('/')[-5]
@@ -127,10 +123,10 @@ def valid(valid_loader, epoch, checkpoint):
                 y_true.append(label[i].cpu().detach().numpy())
 
     print("------ MSE Caculation Finished")
-    logger.Print(f"------ Max MSE: {max(mse)}, Min MSE: {min(mse)}")
+    logger.Print(f"------ Max MSE: {max(mse_list)}, Min MSE: {min(mse_list)}")
 
     # 2. MSE 분포에 따른 threshold 리스트 결정 
-    threshold = np.arange(round(min(mse), -1)+10, round(max(mse), -1)-10, 10)
+    threshold = np.arange(round(min(mse_list), -1)+10, round(max(mse_list), -1)-10, 10)
 
     # 3. threshold 에 대한 accuracy 구하고 max accuracy에 대한 threshold 리턴 
     accuracy_per_thres = []
@@ -140,8 +136,8 @@ def valid(valid_loader, epoch, checkpoint):
     for thres in threshold:   
 
         y_pred = []
-        for i in range(len(mse)):
-            if mse[i] < thres:
+        for i in range(len(mse_list)):
+            if mse_list[i] < thres:
                 y_pred.append(1)
             else:
                 y_pred.append(0)
@@ -166,6 +162,7 @@ def valid(valid_loader, epoch, checkpoint):
     # 데이터 분포도 그래프로 그리기 
     plot_3_kind_data(save_path, f"Light_Distribution_Epoch_{epoch}_", epoch, data_high, data_mid, data_low)
     plot_real_fake_data(save_path, f"Mask_Distribution_Epoch_{epoch}_", epoch, data_real, data_fake)
+    plot_histogram(f"{save_path}", f"Valid_Historgram_{epoch}_", epoch, data_real, data_fake)
 
     return threshold_max, accuracy_max, precision_max, recall_max, f1_max
 
@@ -220,9 +217,9 @@ if __name__ == "__main__":
     logger.Print(epoch_list)
 
     logger.Print(f"***** Result")
-    logger.Print(f"***** Max Accuracy: {accuracy_max:3f}")
-    logger.Print(f"***** Epoch: {epoch_max}")
-    logger.Print(f"***** Precision: {precision_max:3f}")
-    logger.Print(f"***** Recall: {recall_max:3f}")
-    logger.Print(f"***** F1: {f1_max:3f}")
-    logger.Print(f"***** Threshold: {threshold_max:3f}") 
+    logger.Print(f"Accuracy: {accuracy_max:3f}")
+    logger.Print(f"Precision: {precision_max:3f}")
+    logger.Print(f"Recall: {recall_max:3f}")
+    logger.Print(f"F1: {f1_max:3f}")
+    logger.Print(f"Epoch: {epoch_max}")
+    logger.Print(f"Threshold: {threshold_max:3f}")

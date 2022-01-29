@@ -2,11 +2,10 @@ import torch
 import time
 import argparse
 
-from models.Auto_Encoder_RGB import Auto_Encoder_Original, Auto_Encoder_Dropout, Auto_Encoder_layer4
+from models.Auto_Encoder_RGB import AutoEncoder_Original, AutoEncoder_Dropout
 from ad_dataloader.dataloader_RGB import Facedata_Loader
 from loger import Logger
-from utils import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data, plot_result, find_max_accuracy
-
+from utility import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data, plot_histogram
 from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
@@ -30,6 +29,7 @@ parser = argparse.ArgumentParser(description='face anto-spoofing')
 parser.add_argument('--save-path', default='../ad_output/logs/Test/', type=str, help='logs save path')
 parser.add_argument('--checkpoint', default='', type=str, help='checkpoint path')
 parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
+parser.add_argument('--model', default='', type=str, help='model')
 parser.add_argument('--lowdata', default=True, type=booltype, help='whether low data is included')
 parser.add_argument('--datatype', default=0, type=int, help='data set type')
 parser.add_argument('--threshold', default='', type=int, help='threshold')
@@ -48,23 +48,19 @@ logger.Print(time_string + " - " + args.message + "\n")
 
 def test(data_loader, threshold, checkpoint):
 
-    if "original" in args.checkpoint:
-        model = Auto_Encoder_Original()        
+    if "original" in args.model:
+        model = AutoEncoder_Original()        
         print("***** You're training 'original' model.")
-    elif "dropout" in args.checkpoint:
-        model = Auto_Encoder_Dropout()
+    elif "dropout" in args.model:
+        model = AutoEncoder_Dropout()
         print("***** You're training 'dropout' model.")
-    elif "layer4" in args.checkpoint:
-        model = Auto_Encoder_layer4()
-        print("***** You're training 'layer4' model.")
 
     use_cuda = True if torch.cuda.is_available() else False
     if use_cuda:
-        model = torch.nn.DataParallel(model, device_ids=list(range(torch.cuda.device_count()))) #  device_ids=[0, 1, 2]
-        model.cuda()
+        device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+        model.to(device)
+        print('device :', device)
         model.load_state_dict(torch.load(checkpoint))
-    else:
-        print("Something Wrong, Cuda Not Used")
 
     model.eval()
 
@@ -85,8 +81,8 @@ def test(data_loader, threshold, checkpoint):
         for data in data_loader:
 
             rgb_image, label, rgb_path = data
-            rgb_image = rgb_image.cuda()
-            label = label.cuda()
+            rgb_image = rgb_image.to(device)
+            label = label.to(device)
 
             # 모델 태우기 
             recons_image = model(rgb_image)
@@ -95,14 +91,13 @@ def test(data_loader, threshold, checkpoint):
             for i in range(len(rgb_image)):
                 np_image = rgb_image[i].cpu().detach().numpy()
                 np_recons_image = recons_image[i].cpu().detach().numpy()
-                np_image = np_image * 255
-                np_recons_image = np_recons_image * 255
 
                 diff = []
                 for d in range(np_image.shape[0]) :        
                     val = mean_squared_error(np_image[d].flatten(), np_recons_image[d].flatten())
+                    val = 128 * 128 * val
                     diff.append(val)
-                mse_by_sklearn = np.array(diff).mean()
+                mse_by_sklearn = np.array(diff).sum()
 
                 # light 에 따라 데이터 분류하기 
                 path = rgb_path[i].split('/')[-5]
@@ -134,6 +129,7 @@ def test(data_loader, threshold, checkpoint):
         os.makedirs(f'{save_path}/graph')
     plot_3_kind_data(f"{save_path}/graph", "data_distribution(light)", "x", data_high, data_mid, data_low)       
     plot_real_fake_data(f"{save_path}/graph", "data_distribution(real,fake)", "x", data_real, data_fake)
+    plot_histogram(f"{save_path}/graph", f"Valid_Historgram_", "x", data_real, data_fake)
 
     # 모델 평가지표 및 그리기 
     plot_roc_curve(f"{save_path}/graph", f"threshold({threshold})", y_true, y_prob)
@@ -151,47 +147,33 @@ if __name__ == "__main__":
         print("--threshold option is required")
         exit(1)
 
-    checkpoint_original_wlow_0 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_2730_model.pth"
-    checkpoint_original_wolow_0 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_0_model.pth"
-    checkpoint_dropout_wlow_0 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_690_model.pth"
-    checkpoint_dropout_wolow_0 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_2020_model.pth"
-
-    checkpoint_original_wlow_1 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_440_model.pth"
-    checkpoint_original_wolow_1 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_0_model.pth"
-    checkpoint_dropout_wlow_1 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_970_model.pth"
-    checkpoint_dropout_wolow_1 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_150_model.pth"
-    # checkpoint_layer4 = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/RGB/checkpoint/{args.checkpoint}/epoch_2990_model.pth"
+    checkpoint_original = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/checkpoint/{args.checkpoint}/epoch_20_model.pth"
+    checkpoint_dropout_0g = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/checkpoint/{args.checkpoint}/epoch_0_model.pth"
+    checkpoint_dropout_10g = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/checkpoint/{args.checkpoint}/epoch_580_model.pth"
+    checkpoint_dropout_50g = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/checkpoint/{args.checkpoint}/epoch_1150_model.pth"
+    checkpoint_dropout_100g = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/checkpoint/{args.checkpoint}/epoch_1560_model.pth"
 
     logger.Print(f"You're conducting '{args.checkpoint}' weight.")
     checkpoint=""
-
-    if args.datatype == 0 :
-        if "original_w_low" in args.checkpoint:
-            checkpoint = checkpoint_original_wlow_0
-        elif "original_wo_low" in args.checkpoint:
-            checkpoint = checkpoint_original_wolow_0
-        elif "dropout_w_low" in args.checkpoint:
-            checkpoint = checkpoint_dropout_wlow_0
-        elif "dropout_wo_low" in args.checkpoint:
-            checkpoint = checkpoint_dropout_wolow_0   
-    elif args.datatype == 1 :
-        if "original_w_low" in args.checkpoint:
-            checkpoint = checkpoint_original_wlow_1
-        elif "original_wo_low" in args.checkpoint:
-            checkpoint = checkpoint_original_wolow_1
-        elif "dropout_w_low" in args.checkpoint:
-            checkpoint = checkpoint_dropout_wlow_1
-        elif "dropout_wo_low" in args.checkpoint:
-            checkpoint = checkpoint_dropout_wolow_1
+    if "0128_original" in args.checkpoint:
+        checkpoint = checkpoint_original        
+    elif "0128_0_dropout" in args.checkpoint:
+        checkpoint = checkpoint_dropout_0g    
+    elif "0128_dropout" in args.checkpoint:
+        checkpoint = checkpoint_dropout_10g 
+    elif "0128_50_dropout" in args.checkpoint:
+        checkpoint = checkpoint_dropout_50g    
+    elif "0128_100_dropout" in args.checkpoint:
+        checkpoint = checkpoint_dropout_100g 
     logger.Print(f"Weight file is '{checkpoint}'.")
 
     accuracy, precision, recall, f1 = test(test_loader, args.threshold, checkpoint)
 
     ## 결과 파일 따로 저장 
-    logger.Print(f"***** Result (Max Accuracy)")
-    logger.Print(f"***** Threshold: {args.threshold}")
-    logger.Print(f"***** Accuracy: {float(accuracy):3f}")
-    logger.Print(f"***** Precisioin: {float(precision):3f}")
-    logger.Print(f"***** Recall: {float(recall):3f}")
-    logger.Print(f"***** F1: {float(f1):3f}")
+    logger.Print(f"Result (Max Accuracy)")
+    logger.Print(f"Accuracy: {float(accuracy):3f}")
+    logger.Print(f"Precisioin: {float(precision):3f}")
+    logger.Print(f"Recall: {float(recall):3f}")
+    logger.Print(f"F1: {float(f1):3f}")
+    logger.Print(f"Threshold: {args.threshold}")
     

@@ -50,7 +50,7 @@ class Face_Data(Dataset):
             rgb_path = self.rgb_paths[index]
             depth_path = self.depth_paths[index]
             rgb_img = Image.open(rgb_path).convert('RGB')
-            depth_img = Image.open(depth_path).convert('RGB')
+            depth_img = Image.open(depth_path).convert('L')
 
             if self.transform is not None:
                 rgb_img = self.transform(rgb_img)
@@ -98,9 +98,9 @@ def Facedata_Loader(train_size=64, test_size=64, use_lowdata=True, dataset=0):
             test_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/test_data_list_w_etc_wo_low.txt", transform=data_transform) # test 데이터 세 종류 있음. 
             print("***** Low data is not included to data set")
 
-    train_loader = DataLoader(dataset=train_data, batch_size=train_size, shuffle=True, num_workers=32)
-    valid_loader = DataLoader(dataset=valid_data, batch_size=train_size, shuffle=True, num_workers=32)
-    test_loader = DataLoader(dataset=test_data, batch_size=test_size, shuffle=True, num_workers=32)
+    train_loader = DataLoader(dataset=train_data, batch_size=train_size, shuffle=True, num_workers=8)
+    valid_loader = DataLoader(dataset=valid_data, batch_size=train_size, shuffle=True, num_workers=8)
+    test_loader = DataLoader(dataset=test_data, batch_size=test_size, shuffle=True, num_workers=8)
 
     return train_loader, valid_loader, test_loader
 
