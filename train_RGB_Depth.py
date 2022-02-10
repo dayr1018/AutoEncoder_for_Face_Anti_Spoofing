@@ -11,7 +11,7 @@ import numpy as np
 import torch 
 from torch.utils.tensorboard import SummaryWriter
 
-from ad_dataloader.dataloader_RGB_Depth import Facedata_Loader
+from ad_dataloader.dataloader_RGB_Depth import Facedata_Loader_Depth
 from loger import Logger
 from utility import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data, plot_histogram
 
@@ -62,13 +62,13 @@ if "layer3_4to3" in args.model:
     model = Depth_layer3_4to3()
     print("**** You're training 'depth_layer3_4to3' model.")
 elif "layer3_4to4" in args.model:
-    model = Depth_layer3_4to4()
+    model = Depth_layer3_4to4(0.5)
     print("**** You're training 'depth_layer3_4to4' model.")
 elif "layer4_4to3" in args.model:
     model = Depth_layer4_4to3()
     print("**** You're training 'depth_layer4_4to3' model.")
 elif "layer4_4to4" in args.model:
-    model = Depth_layer4_4to4()
+    model = Depth_layer4_4to4(0.5)
     print("**** You're training 'Depth_layer4_4to4' model.")
 elif "layer5_4to4" in args.model:
     model = Depth_layer5_4to4()
@@ -89,9 +89,9 @@ scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
 
 use_cuda = True if torch.cuda.is_available() else False
 if use_cuda : 
-    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
-    model.to(device)
-    print('device :', device)
+    model = torch.nn.DataParallel(model,device_ids=list(range(torch.cuda.device_count()))) #  device_ids=[0, 1, 2]
+    model.cuda()
+    # print('device :', device)
 
 writer = SummaryWriter(f"runs/{args.message}")
 
@@ -125,9 +125,9 @@ def train(epochs, data_loader, valid_loader):
             rgb_image, depth_image, label, rgb_path = data
             
             if use_cuda:
-                rgb_image = rgb_image.to(device)
-                depth_image = depth_image.to(device)
-                label = label.to(device)
+                rgb_image = rgb_image.cuda()
+                depth_image = depth_image.cuda()
+                label = label.cuda()
 
             # depth 모델에 따라 기준 input 달라짐 (v1: 4channel, v2: 3channel)
             if "4to3" in args.model:
@@ -146,6 +146,10 @@ def train(epochs, data_loader, valid_loader):
             # 0128_100_layer5_4to4 는 ratio 100
             gaussian_ratio = 100
             input_image = input_image + torch.clip(torch.randn_like(input_image), 0, 1) * gaussian_ratio  
+
+
+
+
 
             # 모델 태우기 
             # recons_rgb, recons_depth = model(rgb_image, depth_image)
@@ -293,9 +297,9 @@ def valid(valid_loader, epoch, epochs):
         for _, data in enumerate(valid_loader):
 
             rgb_image, depth_image, label, rgb_path = data
-            rgb_image = rgb_image.to(device)        
-            depth_image = depth_image.to(device)
-            label = label.to(device)
+            rgb_image = rgb_image.cuda()      
+            depth_image = depth_image.cuda()
+            label = label.cuda()
 
             # depth 모델에 따라 기준 input 달라짐 (v1: 4channel, v2: 3channel)
             if "4to3" in args.model:
@@ -391,7 +395,7 @@ def valid(valid_loader, epoch, epochs):
 
 if __name__ == "__main__":
     
-    train_loader, valid_loader, _ = Facedata_Loader(train_size=64, test_size=64, use_lowdata=args.lowdata)
+    train_loader, valid_loader, _ = Facedata_Loader_Depth(train_size=64, test_size=64, use_lowdata=args.lowdata)
 
     train(args.epochs, train_loader, valid_loader)
 

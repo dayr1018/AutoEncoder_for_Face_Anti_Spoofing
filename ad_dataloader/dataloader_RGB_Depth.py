@@ -63,7 +63,7 @@ class Face_Data(Dataset):
         def __len__(self):
             return len(self.rgb_paths)
 
-def Facedata_Loader(train_size=64, test_size=64, use_lowdata=True, dataset=0): 
+def Facedata_Loader_Depth(train_size=64, test_size=64, use_lowdata=True, dataset=0): 
     data_transform = transforms.Compose([
         transforms.Resize((128,128)),
         transforms.ToTensor(),
