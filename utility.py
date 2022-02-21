@@ -64,15 +64,22 @@ def cal_metrics(y_true, y_pred):
     
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
 
-    accuracy_cal = (float(tp) + float(tn)) / (float(tp) + float(fn) + float(fp) + float(tn))
-    precision_cal = float(tp) / (float(tp) + float(fp))  
-    recall_cal = float(tp) / (float(tp) + float(fn))
+    # accuracy_cal = (float(tp) + float(tn)) / (float(tp) + float(fn) + float(fp) + float(tn))
+    # precision_cal = float(tp) / (float(tp) + float(fp))  
+    # recall_cal = float(tp) / (float(tp) + float(fn))
 
-    f1_cal = 0
-    if precision_cal + recall_cal != 0:
-        f1_cal = 2 * (float(precision_cal) * float(recall_cal)) / (float(precision_cal) + float(recall_cal))
+    # f1_cal = 0
+    # if precision_cal + recall_cal != 0:
+    #     f1_cal = 2 * (float(precision_cal) * float(recall_cal)) / (float(precision_cal) + float(recall_cal))
     
-    return accuracy_cal, precision_cal, recall_cal, f1_cal
+    # return accuracy_cal, precision_cal, recall_cal, f1_cal
+
+    accuracy = (tp + tn) / (tp + fn + fp + tn + 1e-12)
+    precision = tp / (tp + fp + 1e-12)  
+    recall = tp / (tp + fn + 1e-12)
+    f1 = 2 * (precision * recall) / (precision + recall + 1e-12)
+
+    return accuracy, precision, recall, f1
 
 def plot_3_kind_data(path, filename, epoch, y1, y2, y3):
 

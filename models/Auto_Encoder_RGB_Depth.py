@@ -18,35 +18,34 @@ class Depth_layer3(nn.Module):
         self.encoder = nn.Sequential(         
             # layer 1
             nn.Conv2d(4, 16, kernel_size=3, stride=1, padding=1),  
-            nn.BatchNorm2d(16),
             nn.ReLU(),
+            nn.BatchNorm2d(16),
             nn.MaxPool2d(2,2),
             # layer 2
             nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(32),
             nn.ReLU(),
+            nn.BatchNorm2d(32),
             nn.MaxPool2d(2,2),
             # layer 3
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64),
             nn.ReLU(),
+            nn.BatchNorm2d(64),
             nn.MaxPool2d(2,2)
         )
 
         self.decoder = nn.Sequential(
             # layer 1
             nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2), 
-            nn.BatchNorm2d(32),
             nn.ReLU(),
+            nn.BatchNorm2d(32),
             # layer 2
             nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2),
-            nn.BatchNorm2d(16),
             nn.ReLU(),
+            nn.BatchNorm2d(16),
             # layer 3
             nn.ConvTranspose2d(16, 4, kernel_size=2, stride=2),  
-            nn.BatchNorm2d(4),
             nn.Sigmoid()
-        )        
+        )         
 
     def forward(self, x):
         
@@ -68,42 +67,41 @@ class Depth_layer4(nn.Module):
         self.encoder = nn.Sequential(         
             # layer 1
             nn.Conv2d(4, 16, kernel_size=3, stride=1, padding=1),  
-            nn.BatchNorm2d(16),
             nn.ReLU(),
+            nn.BatchNorm2d(16),
             nn.MaxPool2d(2,2),
             # layer 2
             nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(32),
             nn.ReLU(),
+            nn.BatchNorm2d(32),
             nn.MaxPool2d(2,2),
             # layer 3
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64),
             nn.ReLU(),
+            nn.BatchNorm2d(64),
             nn.MaxPool2d(2,2),
             # layer 4
             nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(128),
             nn.ReLU(),
+            nn.BatchNorm2d(128),
             nn.MaxPool2d(2,2)
         )
 
         self.decoder = nn.Sequential(
             # layer 1
             nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2), 
-            nn.BatchNorm2d(64),
             nn.ReLU(),
+            nn.BatchNorm2d(64),
             # layer 2
             nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2), 
-            nn.BatchNorm2d(32),
             nn.ReLU(),
+            nn.BatchNorm2d(32),
             # layer 3
             nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2),
-            nn.BatchNorm2d(16),
             nn.ReLU(),
+            nn.BatchNorm2d(16),
             # layer 4
             nn.ConvTranspose2d(16, 4, kernel_size=2, stride=2),  
-            nn.BatchNorm2d(4),
             nn.Sigmoid()
         )        
 
@@ -126,51 +124,50 @@ class Depth_layer5(nn.Module):
         self.encoder = nn.Sequential(         
             # layer 1
             nn.Conv2d(4, 16, kernel_size=3, stride=1, padding=1),  
-            nn.BatchNorm2d(16),
             nn.ReLU(),
+            nn.BatchNorm2d(16),
             nn.MaxPool2d(2,2),
             # layer 2
             nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(32),
             nn.ReLU(),
+            nn.BatchNorm2d(32),
             nn.MaxPool2d(2,2),
             # layer 3
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(64),
             nn.ReLU(),
+            nn.BatchNorm2d(64),
             nn.MaxPool2d(2,2),
             # layer 4
             nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(128),
             nn.ReLU(),
+            nn.BatchNorm2d(128),
             nn.MaxPool2d(2,2),
             # layer 5
             nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(256),
             nn.ReLU(),
+            nn.BatchNorm2d(256),
             nn.MaxPool2d(2,2)
         )
 
         self.decoder = nn.Sequential(
             # layer 1
             nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2), 
-            nn.BatchNorm2d(128),
             nn.ReLU(),
+            nn.BatchNorm2d(128),
             # layer 2
             nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2), 
-            nn.BatchNorm2d(64),
             nn.ReLU(),
+            nn.BatchNorm2d(64),
             # layer 3
             nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2), 
-            nn.BatchNorm2d(32),
             nn.ReLU(),
+            nn.BatchNorm2d(32),
             # layer 4
             nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2),
-            nn.BatchNorm2d(16),
             nn.ReLU(),
+            nn.BatchNorm2d(16),
             # layer 5
             nn.ConvTranspose2d(16, 4, kernel_size=2, stride=2),  
-            nn.BatchNorm2d(4),
             nn.Sigmoid()
         )        
 

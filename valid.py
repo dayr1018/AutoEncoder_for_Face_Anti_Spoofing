@@ -84,7 +84,7 @@ def main(args, valid_loader):
 
     for epoch in range(args.epochs):
 
-        if (epoch % 10) == 0 or epoch == (args.epochs-1):
+        if (epoch % 5) == 0 or epoch == (args.epochs-1):
             # validation 수행
             result_when_accuracy_max, result_when_f1_max = valid(args, valid_loader, model, epoch, logger, mse, writer) 
             logger.Print(f"Current Epoch: {epoch}, Accuracy: {result_when_accuracy_max[1]}, F1: {result_when_f1_max[4]}")
@@ -316,7 +316,7 @@ if __name__ == "__main__":
     parser.add_argument('--depth', default=True, type=booltype, help='RGB or Depth(default: Depth)')
 
     parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
-    parser.add_argument('--epochs', default=1000, type=int, help='train epochs')
+    parser.add_argument('--epochs', default=500, type=int, help='train epochs')
     parser.add_argument('--lowdata', default=True, type=booltype, help='whether low data is included')
     parser.add_argument('--usedrop', default=True, type=booltype, help='whether dropout layer is used')
     parser.add_argument('--datatype', default=0, type=int, help='data set type')

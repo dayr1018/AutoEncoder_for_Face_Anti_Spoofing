@@ -2,6 +2,8 @@
 # python train.py --depth true --model layer4_4to4 --cuda 0 --gr 50 --dr 0.5 --message 0202_layer4_4to4_g50 
 
 import torch
+import torch.nn.init as init
+import torch.nn.functional as f
 import time
 from datetime import datetime
 import argparse
@@ -14,6 +16,8 @@ from sklearn.metrics import mean_squared_error
 import numpy as np
 import random
 from torch.utils.tensorboard import SummaryWriter
+import cv2
+
 
 from ad_dataloader.dataloader import Facedata_Loader
 
@@ -91,6 +95,18 @@ def train(args, train_loader, valid_loader):
     f1s_when_f1_criteria = []
     epochs_when_f1_criteria = []
 
+    ###### 매 에폭 텐서 고정!!!!
+    # # # Gaussian Noise 
+    # gaussian_mean = 0
+    # gaussian_std = args.gr
+
+    # noise_3channel = init.normal_(torch.zeros(3, 128, 128), gaussian_mean, gaussian_std).to(args.device)
+    # noise_1channel = init.normal_(torch.zeros(1, 128, 128), gaussian_mean, gaussian_std).to(args.device)
+    # noise_4channel = init.normal_(torch.zeros(4, 128, 128), gaussian_mean, gaussian_std).to(args.device)
+
+    # noise_3channel = f.normalize(noise_3channel, dim=0)
+    # noise_4channel = f.normalize(noise_4channel, dim=0)
+
     for epoch in range(args.epochs):
 
         logger.Print(f"***** << Training epoch:{epoch} >>")  
@@ -123,7 +139,75 @@ def train(args, train_loader, valid_loader):
                 input_image = standard_image
 
             # Gaussian Noise 
-            input_image = input_image + torch.clip(torch.randn_like(input_image), 0, 1) * args.gr  
+            # gaussian_mean = 0
+            # gaussian_std = args.gr
+#1.
+            # ###### 일반적인 정규분포 정규화
+            # if args.depth == False:
+            #     noise = torch.nn.init.normal_(torch.zeros(len(input_image), 3, 128, 128), gaussian_mean, gaussian_std).to(args.device)
+            # elif args.depth == True:
+            #     noise = torch.nn.init.normal_(torch.zeros(len(input_image), 4, 128, 128), gaussian_mean, gaussian_std).to(args.device)
+            
+            # #.1 그냥 했을 때.
+
+            # #.2 abs 했을 때
+            # #noise = noise.abs()
+            
+            # #.3 일반 정규화
+            # #noise = torch.nn.functional.normalize(noise)
+            
+            # #.4 일반 정규화 후 abs
+            # # noise = torch.nn.functional.normalize(noise).abs()
+            
+            # #.5 minmax 정규화 
+            # noise = ((noise - noise.min()) / (noise.max() - noise.min()))
+
+#2.
+            ##### 매 에폭 텐서 고정!!!!
+            # if args.depth == False:
+            #     noise = torch.zeros(len(rgb_image), 3, 128, 128).to(args.device)
+            #     for i in range(len(rgb_image)):
+            #         noise[i] = noise_3channel
+            # elif args.depth == True:
+            #     noise = torch.zeros(len(rgb_image), 4, 128, 128).to(args.device)
+            #     for i in range(len(rgb_image)):
+            #         noise[i] = noise_4channel
+            # noise = torch.nn.functional.normalize(noise)
+            # noise = torch.nn.functional.normalize(noise).abs()
+            # noise = (noise - noise.min()) / (noise.max() - noise.min())
+            # noise = noise.abs()
+
+#3. 
+            ###### 일반적인 정규분포 정규화
+            # noise_3 = torch.nn.init.normal_(torch.zeros(len(input_image), 3, 128, 128), gaussian_mean, gaussian_std)
+            # noise_1 = torch.nn.init.normal_(torch.zeros(len(input_image), 1, 128, 128), gaussian_mean, gaussian_std)
+            # noise_3 = f.normalize(noise_3)
+            # noise_1 = f.normalize(noise_1)
+
+            # noise_4 = torch.cat((noise_3, noise_1), dim=1)
+
+            # if args.depth == False:
+            #     noise = noise_3.to(args.device)
+            # elif args.depth == True:
+            #     noise = noise_4.to(args.device)
+            
+            # #.1 그냥 했을 때.
+
+            # #.2 abs 했을 때
+            # #noise = noise.abs()
+            
+            # #.3 일반 정규화
+            # noise = torch.nn.functional.normalize(noise)
+            
+            # #.4 일반 정규화 후 abs
+            # #noise = torch.nn.functional.normalize(noise).abs()
+            
+            # #.5 minmax 정규화 
+            # # noise = ((noise - noise.min()) / (noise.max() - noise.min()))
+
+
+            # if args.gr != 0:
+            #     input_image = input_image + noise
 
             # 모델 태우기 
             recons_image = model(input_image)
@@ -189,7 +273,7 @@ def train(args, train_loader, valid_loader):
 
         scheduler.step()
 
-        if (epoch % 10) == 0 or epoch == (args.epochs-1):
+        if (epoch % 5) == 0 or epoch == (args.epochs-1):
             # validation 수행
             result_when_accuracy_max, result_when_f1_max = valid(args, valid_loader, model, epoch, logger, mse, writer) 
             logger.Print(f"Current Epoch: {epoch}, Accuracy: {result_when_accuracy_max[1]}, F1: {result_when_f1_max[4]}")
@@ -428,13 +512,13 @@ if __name__ == "__main__":
     parser.add_argument('--depth', default=True, type=booltype, help='RGB or Depth(default: Depth)')
 
     parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
-    parser.add_argument('--epochs', default=1000, type=int, help='train epochs')
+    parser.add_argument('--epochs', default=500, type=int, help='train epochs')
     parser.add_argument('--lowdata', default=True, type=booltype, help='whether low data is included')
-    parser.add_argument('--usedrop', default=True, type=booltype, help='whether dropout layer is used')
-    parser.add_argument('--datatype', default=0, type=int, help='data set type')
+    parser.add_argument('--usedrop', default=False, type=booltype, help='whether dropout layer is used')
+    parser.add_argument('--dataset', default=0, type=int, help='data set type')
     parser.add_argument('--loss', default=0, type=int, help='0: mse, 1:rapp')
     
-    parser.add_argument('--gr', default=0, type=float, help='guassian rate(default: 0)')
+    parser.add_argument('--gr', default=1, type=float, help='guassian rate(default: 0)')
     parser.add_argument('--dr', default=0.5, type=float, help='dropout rate(default: 0.1)')
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate(default: 0.001)')
     parser.add_argument('--skf', default=0, type=int, help='stratified k-fold')
@@ -475,7 +559,7 @@ if __name__ == "__main__":
     random.seed(args.seed)
 
     # data loader
-    train_loader, valid_loader, _ = Facedata_Loader(train_size=64, test_size=64, use_lowdata=args.lowdata, dataset=args.datatype)
+    train_loader, valid_loader, _ = Facedata_Loader(train_size=64, test_size=64, use_lowdata=args.lowdata, dataset=args.dataset)
     
     # train 코드
     train(args, train_loader, valid_loader)

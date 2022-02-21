@@ -37,6 +37,10 @@ def main(args, valid_loader):
     logger = Logger(f'{args.save_path_test}/logs.logs')
     logger.Print(args)
 
+    checkpoint_test_original = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/checkpoint/{args.checkpoint_path}/epoch_15_model.pth"
+    checkpoint_test_depth = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/checkpoint/{args.checkpoint_path}/epoch_45_model.pth"
+
+
     if args.datatype == 0:
         if args.lowdata == True:
             checkpoint_original = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/checkpoint/{args.checkpoint_path}/epoch_30_model.pth"
@@ -61,6 +65,9 @@ def main(args, valid_loader):
             checkpoint_0210_depth_layer3_nodrop = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/checkpoint/{args.checkpoint_path}/epoch_50_model.pth"
             checkpoint_0210_depth_layer4_nodrop = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/checkpoint/{args.checkpoint_path}/epoch_30_model.pth"
             checkpoint_0210_depth_layer5_nodrop = f"/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/checkpoint/{args.checkpoint_path}/epoch_20_model.pth"
+
+  
+            
 
     elif args.datatype == 1:
         if args.lowdata == True:
@@ -106,7 +113,10 @@ def main(args, valid_loader):
         checkpoint = checkpoint_0210_depth_layer4_nodrop    
     elif "0210_depth_layer5_nodrop" in args.checkpoint_path:
         checkpoint = checkpoint_0210_depth_layer5_nodrop 
-
+    elif "0213_TEST_original_v21" in args.checkpoint_path:
+        checkpoint = checkpoint_test_original 
+    elif "0213_TEST_depth_v21" in args.checkpoint_path:
+        checkpoint = checkpoint_test_depth 
     logger.Print(f"Weight file is '{checkpoint}'.")
 
     # loss 함수 - test MSE 구하기 위해 
@@ -242,11 +252,11 @@ if __name__ == "__main__":
     parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
     parser.add_argument('--epochs', default=1000, type=int, help='train epochs')
     parser.add_argument('--lowdata', default=True, type=booltype, help='whether low data is included')
-    parser.add_argument('--usedrop', default=True, type=booltype, help='whether dropout layer is used')
+    parser.add_argument('--usedrop', default=False, type=booltype, help='whether dropout layer is used')
     parser.add_argument('--datatype', default=0, type=int, help='data set type')
     parser.add_argument('--loss', default=0, type=int, help='0: mse, 1:rapp')
     
-    parser.add_argument('--gr', default=0, type=float, help='guassian rate(default: 0)')
+    parser.add_argument('--gr', default=1, type=float, help='guassian rate(default: 0)')
     parser.add_argument('--dr', default=0.5, type=float, help='dropout rate(default: 0.1)')
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate(default: 0.001)')
     parser.add_argument('--skf', default=0, type=int, help='stratified k-fold')
