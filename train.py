@@ -7,8 +7,8 @@ import torch.nn.functional as f
 import time
 from datetime import datetime
 import argparse
-from models.Auto_Encoder_RGB import AutoEncoder_Original, AutoEncoder_Dropout, AutoEncoder_layer4
-from models.Auto_Encoder_RGB_Depth import Depth_layer3, Depth_layer4, Depth_layer5
+from models.Auto_Encoder_RGB import AutoEncoder_Original_layer2, AutoEncoder_Original_layer3, AutoEncoder_Original_layer4, AutoEncoder_Original_layer5, AutoEncoder_Dropout, AutoEncoder_layer4
+from models.Auto_Encoder_RGB_Depth import Depth_layer2, Depth_layer3, Depth_layer4, Depth_layer5
 from models.Auto_Encoder_RGB_Depth import Depth_layer3_1to1, Depth_layer4_1to1, Depth_layer5_1to1
 import torch.optim as optim
 from torch.optim import lr_scheduler
@@ -17,6 +17,7 @@ import numpy as np
 import random
 from torch.utils.tensorboard import SummaryWriter
 import cv2
+from skimage.util import random_noise
 
 
 from ad_dataloader.dataloader import Facedata_Loader
@@ -50,9 +51,18 @@ def train(args, train_loader, valid_loader):
     writer = SummaryWriter(f"runs/{args.message}")
 
     # RGB 모델
-    if "original" in args.model:
-        model = AutoEncoder_Original().to(args.device)        
-        print("***** You're training 'original' model.")
+    if "original_layer2" in args.model:
+        model = AutoEncoder_Original_layer2().to(args.device)        
+        print("***** You're training 'original layer2' model.")
+    if "original_layer3" in args.model:
+        model = AutoEncoder_Original_layer3().to(args.device)        
+        print("***** You're training 'original layer3' model.")
+    elif "original_layer4" in args.model:
+        model = AutoEncoder_Original_layer4().to(args.device)        
+        print("***** You're training 'original layer3' model.")    
+    elif "original_layer5" in args.model:
+        model = AutoEncoder_Original_layer5().to(args.device)        
+        print("***** You're training 'original layer4' model.")
     elif "dropout" in args.model:
         model = AutoEncoder_Dropout(use_drop=args.usedrop, dropout_rate=args.dr).to(args.device)
         print("***** You're training 'dropout' model.")
@@ -61,7 +71,10 @@ def train(args, train_loader, valid_loader):
         print("***** You're training 'layer4' model.")
 
     # Depth 모델 
-    if "depth_layer3" in args.model:
+    if "depth_layer2" in args.model:
+        model = Depth_layer2(use_drop=args.usedrop, dropout_rate=args.dr).to(args.device)
+        print("**** You're training 'Depth_layer2' model.")
+    elif "depth_layer3" in args.model:
         model = Depth_layer3(use_drop=args.usedrop, dropout_rate=args.dr).to(args.device)
         print("**** You're training 'Depth_layer3' model.")
     elif "depth_layer4" in args.model:
@@ -124,19 +137,45 @@ def train(args, train_loader, valid_loader):
         for batch, data in enumerate(train_loader, 0):
 
             size = len(train_loader.dataset)
-            rgb_image, depth_image, label, rgb_path = data
-            rgb_image = rgb_image.to(args.device)
-            depth_image = depth_image.to(args.device)
+            rgb_image, depth_image, _, _, label, rgb_path = data
             label = label.to(args.device)
 
+            total_image = torch.cat((rgb_image, depth_image), dim=1)
+
             # RGB
-            if args.depth == False:            
-                standard_image = rgb_image
-                input_image = standard_image  
+            if args.depth == False:        
+                rgb_image = torch.FloatTensor(random_noise(rgb_image, mode='gaussian', mean=0, var=args.gr, clip=True)).to(args.device)    
+                standard_image = rgb_image  
+                input_image = standard_image
             # Depth
             elif args.depth == True:
-                standard_image = torch.cat((rgb_image, depth_image), dim=1)
+                total_image = torch.FloatTensor(random_noise(total_image, mode='gaussian', mean=0, var=args.gr, clip=True)).to(args.device)
+                standard_image = total_image
                 input_image = standard_image
+            
+
+        
+
+            # size = len(train_loader.dataset)
+            # rgb_image, depth_image, _, _, label, rgb_path = data
+            # rgb_image = torch.FloatTensor(random_noise(rgb_image, mode='gaussian', mean=0, var=args.gr, clip=True))
+            # depth_image = torch.FloatTensor(random_noise(depth_image, mode='gaussian', mean=0, var=args.gr, clip=True))
+            # rgb_image = rgb_image.to(args.device)
+            # depth_image = depth_image.to(args.device)
+            # label = label.to(args.device)
+
+            # # RGB
+            # if args.depth == False:            
+            #     standard_image = rgb_image
+            #     input_image = standard_image  
+            # # Depth
+            # elif args.depth == True:
+            #     standard_image = torch.cat((rgb_image, depth_image), dim=1)
+            #     input_image = standard_image
+
+
+
+
 
             # Gaussian Noise 
             # gaussian_mean = 0
@@ -393,7 +432,7 @@ def valid(args, valid_loader, model, epoch, logger, loss_function, writer):
     with torch.no_grad():
         for _, data in enumerate(valid_loader):
 
-            rgb_image, depth_image, label, rgb_path = data
+            rgb_image, depth_image, _, _, label, rgb_path = data
             rgb_image = rgb_image.to(args.device)        
             depth_image = depth_image.to(args.device)
             label = label.to(args.device)
@@ -507,24 +546,24 @@ if __name__ == "__main__":
     parser.add_argument('--save-path', default='../ad_output/logs/Train/', type=str, help='train logs path')
     parser.add_argument('--save-path-valid', default='', type=str, help='valid logs path')
 
-    parser.add_argument('--model', default='', type=str, help='model')
+    parser.add_argument('--model', default='', type=str, help='model')                                              # essential
     parser.add_argument('--checkpoint-path', default='', type=str, help='checkpoint path')
-    parser.add_argument('--depth', default=True, type=booltype, help='RGB or Depth(default: Depth)')
+    parser.add_argument('--depth', default=True, type=booltype, help='RGB or Depth(default: Depth)')                # essential
 
-    parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')
-    parser.add_argument('--epochs', default=500, type=int, help='train epochs')
+    parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')                      # essential
+    parser.add_argument('--epochs', default=300, type=int, help='train epochs')                                     # essential
     parser.add_argument('--lowdata', default=True, type=booltype, help='whether low data is included')
-    parser.add_argument('--usedrop', default=False, type=booltype, help='whether dropout layer is used')
+    parser.add_argument('--usedrop', default=False, type=booltype, help='whether dropout layer is used')            
     parser.add_argument('--dataset', default=0, type=int, help='data set type')
     parser.add_argument('--loss', default=0, type=int, help='0: mse, 1:rapp')
     
-    parser.add_argument('--gr', default=1, type=float, help='guassian rate(default: 0)')
+    parser.add_argument('--gr', default=0.01, type=float, help='gaussian rate(default: 0.01)')
     parser.add_argument('--dr', default=0.5, type=float, help='dropout rate(default: 0.1)')
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate(default: 0.001)')
     parser.add_argument('--skf', default=0, type=int, help='stratified k-fold')
 
     parser.add_argument('--seed', default=1, type=int, help='Seed for random number generator')
-    parser.add_argument('--cuda', default=0, type=int, help='gpu number')    
+    parser.add_argument('--cuda', default=0, type=int, help='gpu number')                                           # essential
     parser.add_argument('--device', default='', type=str, help='device when cuda is available')
 
     args = parser.parse_args()
@@ -559,7 +598,7 @@ if __name__ == "__main__":
     random.seed(args.seed)
 
     # data loader
-    train_loader, valid_loader, _ = Facedata_Loader(train_size=64, test_size=64, use_lowdata=args.lowdata, dataset=args.dataset)
+    train_loader, valid_loader, _ = Facedata_Loader(train_size=64, test_size=64, use_lowdata=args.lowdata, dataset=args.dataset, gaussian_radius=args.gr)
     
     # train 코드
     train(args, train_loader, valid_loader)

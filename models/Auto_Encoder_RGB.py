@@ -7,9 +7,41 @@ import torch.nn as nn
 
 # dropout_rate = 0.25
 
-class AutoEncoder_Original(nn.Module):
+class AutoEncoder_Original_layer2(nn.Module):
     def __init__(self):
-        super(AutoEncoder_Original, self).__init__()
+        super(AutoEncoder_Original_layer2, self).__init__()
+
+        self.encoder_layer = nn.Sequential(         
+            nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1),  
+            nn.ReLU(),
+            nn.BatchNorm2d(16),
+            nn.MaxPool2d(2,2),
+            
+            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+            nn.MaxPool2d(2,2),
+        )
+
+        self.decoder_layer = nn.Sequential(
+            nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2),
+            nn.ReLU(),
+            nn.BatchNorm2d(16),
+
+            nn.ConvTranspose2d(16, 3, kernel_size=2, stride=2),  
+            nn.Sigmoid()
+        )
+    
+    def forward(self, x):
+
+        latent = self.encoder_layer(x)
+        out = self.decoder_layer(latent)
+      
+        return out
+
+class AutoEncoder_Original_layer3(nn.Module):
+    def __init__(self):
+        super(AutoEncoder_Original_layer3, self).__init__()
 
         self.encoder_layer = nn.Sequential(         
             nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1),  
@@ -47,7 +79,117 @@ class AutoEncoder_Original(nn.Module):
         out = self.decoder_layer(latent)
       
         return out
-                
+
+class AutoEncoder_Original_layer4(nn.Module):
+    def __init__(self):
+        super(AutoEncoder_Original_layer4, self).__init__()
+
+        self.encoder_layer = nn.Sequential(         
+            nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1),  
+            nn.ReLU(),
+            nn.BatchNorm2d(16),
+            nn.MaxPool2d(2,2),
+            
+            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+            nn.MaxPool2d(2,2),
+
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+            nn.MaxPool2d(2,2),
+
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(128),
+            nn.MaxPool2d(2,2)
+        )
+
+        self.decoder_layer = nn.Sequential(
+            nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2), 
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+
+            nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2), # original은 kernel_size=3
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+
+            nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2),
+            nn.ReLU(),
+            nn.BatchNorm2d(16),
+
+            nn.ConvTranspose2d(16, 3, kernel_size=2, stride=2),  
+            nn.Sigmoid()
+        )
+    
+    def forward(self, x):
+
+        latent = self.encoder_layer(x)
+        out = self.decoder_layer(latent)
+      
+        return out
+
+class AutoEncoder_Original_layer5(nn.Module):
+    def __init__(self):
+        super(AutoEncoder_Original_layer5, self).__init__()
+
+        self.encoder_layer = nn.Sequential(         
+            nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1),  
+            nn.ReLU(),
+            nn.BatchNorm2d(16),
+            nn.MaxPool2d(2,2),
+            
+            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+            nn.MaxPool2d(2,2),
+
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+            nn.MaxPool2d(2,2),
+
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(128),
+            nn.MaxPool2d(2,2),
+
+            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.BatchNorm2d(256),
+            nn.MaxPool2d(2,2)
+        )
+
+        self.decoder_layer = nn.Sequential(
+            nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2), 
+            nn.ReLU(),
+            nn.BatchNorm2d(128),
+
+            nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2), 
+            nn.ReLU(),
+            nn.BatchNorm2d(64),
+
+            nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2), 
+            nn.ReLU(),
+            nn.BatchNorm2d(32),
+
+            nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2),
+            nn.ReLU(),
+            nn.BatchNorm2d(16),
+
+            nn.ConvTranspose2d(16, 3, kernel_size=2, stride=2),  
+            nn.Sigmoid()
+        )
+    
+    def forward(self, x):
+
+        latent = self.encoder_layer(x)
+        out = self.decoder_layer(latent)
+      
+        return out
+
+
 class AutoEncoder_Dropout(nn.Module):
     def __init__(self, use_drop = True, dropout_rate = 0.5):
         super(AutoEncoder_Dropout, self).__init__()
