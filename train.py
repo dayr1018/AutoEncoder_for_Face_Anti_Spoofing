@@ -4,28 +4,29 @@
 import torch
 import torch.nn.init as init
 import torch.nn.functional as f
+import torch.optim as optim
+from torch.optim import lr_scheduler
+from torchinfo import summary
+from torch.utils.tensorboard import SummaryWriter
+
+from models.AutoEncoder import AutoEncoder_RGB, AutoEncoder_Depth
+from models.AutoEncoder import AutoEncoder_Intergrated_Basic, AutoEncoder_Intergrated_Proposed
+from ad_dataloader.dataloader import Facedata_Loader
+
+import numpy as np
+import random
+import cv2
 import time
 from datetime import datetime
 import argparse
-from models.Auto_Encoder_RGB import AutoEncoder_Original_layer2, AutoEncoder_Original_layer3, AutoEncoder_Original_layer4, AutoEncoder_Original_layer5, AutoEncoder_Dropout, AutoEncoder_layer4
-from models.Auto_Encoder_RGB_Depth import Depth_layer2, Depth_layer3, Depth_layer4, Depth_layer5
-from models.Auto_Encoder_RGB_Depth import Depth_layer3_1to1, Depth_layer4_1to1, Depth_layer5_1to1
-import torch.optim as optim
-from torch.optim import lr_scheduler
+from loger import Logger
+import os
+import sys
+
 from sklearn.metrics import mean_squared_error
-import numpy as np
-import random
-from torch.utils.tensorboard import SummaryWriter
-import cv2
+from utility import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data, plot_histogram
 from skimage.util import random_noise
 
-
-from ad_dataloader.dataloader import Facedata_Loader
-
-from loger import Logger
-from utility import plot_roc_curve, cal_metrics, plot_3_kind_data, plot_real_fake_data, plot_histogram
-
-import os
 
 def booltype(str):
     if isinstance(str, bool):
@@ -50,39 +51,22 @@ def train(args, train_loader, valid_loader):
     # Tensorboard 
     writer = SummaryWriter(f"runs/{args.message}")
 
-    # RGB 모델
-    if "original_layer2" in args.model:
-        model = AutoEncoder_Original_layer2().to(args.device)        
-        print("***** You're training 'original layer2' model.")
-    if "original_layer3" in args.model:
-        model = AutoEncoder_Original_layer3().to(args.device)        
-        print("***** You're training 'original layer3' model.")
-    elif "original_layer4" in args.model:
-        model = AutoEncoder_Original_layer4().to(args.device)        
-        print("***** You're training 'original layer3' model.")    
-    elif "original_layer5" in args.model:
-        model = AutoEncoder_Original_layer5().to(args.device)        
-        print("***** You're training 'original layer4' model.")
-    elif "dropout" in args.model:
-        model = AutoEncoder_Dropout(use_drop=args.usedrop, dropout_rate=args.dr).to(args.device)
-        print("***** You're training 'dropout' model.")
-    elif "layer4" in args.model:
-        model = AutoEncoder_layer4(use_drop=args.usedrop, dropout_rate=args.dr).to(args.device)
-        print("***** You're training 'layer4' model.")
+    # 모델 선택 
+    if "rgb" in args.model:
+        model = AutoEncoder_RGB(args.layer, 3, args.batchnorm, args.dr).to(args.device)
+    elif "depth" in args.model:
+        model = AutoEncoder_Depth(args.layer, 1, args.batchnorm, args.dr).to(args.device)
+    elif "both" in args.model:
+        model = AutoEncoder_Intergrated_Basic(args.layer, 4, args.batchnorm, args.dr).to(args.device)
+    elif "proposed" in args.model:
+        model = AutoEncoder_Intergrated_Proposed(args.layer, 3, args.batchnorm, args.dr).to(args.device)
+    else:
+        print("args.model is not correct")
+        sys.exit(0)
 
-    # Depth 모델 
-    if "depth_layer2" in args.model:
-        model = Depth_layer2(use_drop=args.usedrop, dropout_rate=args.dr).to(args.device)
-        print("**** You're training 'Depth_layer2' model.")
-    elif "depth_layer3" in args.model:
-        model = Depth_layer3(use_drop=args.usedrop, dropout_rate=args.dr).to(args.device)
-        print("**** You're training 'Depth_layer3' model.")
-    elif "depth_layer4" in args.model:
-        model = Depth_layer4(use_drop=args.usedrop, dropout_rate=args.dr).to(args.device)
-        print("**** You're training 'Depth_layer4' model.")
-    elif "depth_layer5" in args.model:
-        model = Depth_layer5(use_drop=args.usedrop, dropout_rate=args.dr).to(args.device)
-        print("**** You're training 'Depth_layer5' model.")
+
+    # Model 아키텍쳐 출력 
+    summary(model)
 
     # 옵티마이저, 스케줄러
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -108,18 +92,6 @@ def train(args, train_loader, valid_loader):
     f1s_when_f1_criteria = []
     epochs_when_f1_criteria = []
 
-    ###### 매 에폭 텐서 고정!!!!
-    # # # Gaussian Noise 
-    # gaussian_mean = 0
-    # gaussian_std = args.gr
-
-    # noise_3channel = init.normal_(torch.zeros(3, 128, 128), gaussian_mean, gaussian_std).to(args.device)
-    # noise_1channel = init.normal_(torch.zeros(1, 128, 128), gaussian_mean, gaussian_std).to(args.device)
-    # noise_4channel = init.normal_(torch.zeros(4, 128, 128), gaussian_mean, gaussian_std).to(args.device)
-
-    # noise_3channel = f.normalize(noise_3channel, dim=0)
-    # noise_4channel = f.normalize(noise_4channel, dim=0)
-
     for epoch in range(args.epochs):
 
         logger.Print(f"***** << Training epoch:{epoch} >>")  
@@ -136,120 +108,44 @@ def train(args, train_loader, valid_loader):
         # 데이터 load & to cuda  
         for batch, data in enumerate(train_loader, 0):
 
+            rgb_image, depth_image, label, rgb_path = data
             size = len(train_loader.dataset)
-            rgb_image, depth_image, _, _, label, rgb_path = data
+
+            # 가우시안 노이즈 세팅 
+            if args.model == "rgb":
+                if args.gr is not 0:
+                    rgb_image = torch.FloatTensor(random_noise(rgb_image, mode='gaussian', mean=0, var=args.gr, clip=True))
+                standard_image = rgb_image    
+
+            elif args.model == "depth":
+                if args.gr is not 0:
+                    depth_image = torch.FloatTensor(random_noise(depth_image, mode='gaussian', mean=0, var=args.gr, clip=True))
+                standard_image = depth_image   
+
+            elif args.model == "both":
+                if args.gr is not 0:
+                    rgb_image = torch.FloatTensor(random_noise(rgb_image, mode='gaussian', mean=0, var=args.gr, clip=True))
+                    depth_image = torch.FloatTensor(random_noise(depth_image, mode='gaussian', mean=0, var=args.gr, clip=True))
+                standard_image = torch.cat((rgb_image, depth_image), dim=1)  
+
+            elif args.model == "proposed":
+                if args.gr is not 0:
+                    rgb_image = torch.FloatTensor(random_noise(rgb_image, mode='gaussian', mean=0, var=args.gr, clip=True))
+                standard_image = torch.cat((rgb_image, depth_image), dim=1)  
+
+            # 텐서화 
+            rgb_image = rgb_image.to(args.device)
+            depth_image = depth_image.to(args.device)
             label = label.to(args.device)
+            standard_image = standard_image.to(args.device)
 
-            total_image = torch.cat((rgb_image, depth_image), dim=1)
-
-            # RGB
-            if args.depth == False:        
-                rgb_image = torch.FloatTensor(random_noise(rgb_image, mode='gaussian', mean=0, var=args.gr, clip=True)).to(args.device)    
-                standard_image = rgb_image  
-                input_image = standard_image
-            # Depth
-            elif args.depth == True:
-                total_image = torch.FloatTensor(random_noise(total_image, mode='gaussian', mean=0, var=args.gr, clip=True)).to(args.device)
-                standard_image = total_image
-                input_image = standard_image
-            
-
-        
-
-            # size = len(train_loader.dataset)
-            # rgb_image, depth_image, _, _, label, rgb_path = data
-            # rgb_image = torch.FloatTensor(random_noise(rgb_image, mode='gaussian', mean=0, var=args.gr, clip=True))
-            # depth_image = torch.FloatTensor(random_noise(depth_image, mode='gaussian', mean=0, var=args.gr, clip=True))
-            # rgb_image = rgb_image.to(args.device)
-            # depth_image = depth_image.to(args.device)
-            # label = label.to(args.device)
-
-            # # RGB
-            # if args.depth == False:            
-            #     standard_image = rgb_image
-            #     input_image = standard_image  
-            # # Depth
-            # elif args.depth == True:
-            #     standard_image = torch.cat((rgb_image, depth_image), dim=1)
-            #     input_image = standard_image
-
-
-
-
-
-            # Gaussian Noise 
-            # gaussian_mean = 0
-            # gaussian_std = args.gr
-#1.
-            # ###### 일반적인 정규분포 정규화
-            # if args.depth == False:
-            #     noise = torch.nn.init.normal_(torch.zeros(len(input_image), 3, 128, 128), gaussian_mean, gaussian_std).to(args.device)
-            # elif args.depth == True:
-            #     noise = torch.nn.init.normal_(torch.zeros(len(input_image), 4, 128, 128), gaussian_mean, gaussian_std).to(args.device)
-            
-            # #.1 그냥 했을 때.
-
-            # #.2 abs 했을 때
-            # #noise = noise.abs()
-            
-            # #.3 일반 정규화
-            # #noise = torch.nn.functional.normalize(noise)
-            
-            # #.4 일반 정규화 후 abs
-            # # noise = torch.nn.functional.normalize(noise).abs()
-            
-            # #.5 minmax 정규화 
-            # noise = ((noise - noise.min()) / (noise.max() - noise.min()))
-
-#2.
-            ##### 매 에폭 텐서 고정!!!!
-            # if args.depth == False:
-            #     noise = torch.zeros(len(rgb_image), 3, 128, 128).to(args.device)
-            #     for i in range(len(rgb_image)):
-            #         noise[i] = noise_3channel
-            # elif args.depth == True:
-            #     noise = torch.zeros(len(rgb_image), 4, 128, 128).to(args.device)
-            #     for i in range(len(rgb_image)):
-            #         noise[i] = noise_4channel
-            # noise = torch.nn.functional.normalize(noise)
-            # noise = torch.nn.functional.normalize(noise).abs()
-            # noise = (noise - noise.min()) / (noise.max() - noise.min())
-            # noise = noise.abs()
-
-#3. 
-            ###### 일반적인 정규분포 정규화
-            # noise_3 = torch.nn.init.normal_(torch.zeros(len(input_image), 3, 128, 128), gaussian_mean, gaussian_std)
-            # noise_1 = torch.nn.init.normal_(torch.zeros(len(input_image), 1, 128, 128), gaussian_mean, gaussian_std)
-            # noise_3 = f.normalize(noise_3)
-            # noise_1 = f.normalize(noise_1)
-
-            # noise_4 = torch.cat((noise_3, noise_1), dim=1)
-
-            # if args.depth == False:
-            #     noise = noise_3.to(args.device)
-            # elif args.depth == True:
-            #     noise = noise_4.to(args.device)
-            
-            # #.1 그냥 했을 때.
-
-            # #.2 abs 했을 때
-            # #noise = noise.abs()
-            
-            # #.3 일반 정규화
-            # noise = torch.nn.functional.normalize(noise)
-            
-            # #.4 일반 정규화 후 abs
-            # #noise = torch.nn.functional.normalize(noise).abs()
-            
-            # #.5 minmax 정규화 
-            # # noise = ((noise - noise.min()) / (noise.max() - noise.min()))
-
-
-            # if args.gr != 0:
-            #     input_image = input_image + noise
-
-            # 모델 태우기 
-            recons_image = model(input_image)
+            # 모델 태우기
+            if args.model == "rgb":
+                recons_image = model(rgb_image)
+            elif args.model == "depth":
+                recons_image = model(depth_image)
+            else:
+                recons_image = model(rgb_image, depth_image)
           
             # loss 불러오기
             loss = mse(standard_image, recons_image)
@@ -432,22 +328,28 @@ def valid(args, valid_loader, model, epoch, logger, loss_function, writer):
     with torch.no_grad():
         for _, data in enumerate(valid_loader):
 
-            rgb_image, depth_image, _, _, label, rgb_path = data
+            rgb_image, depth_image, label, rgb_path = data
             rgb_image = rgb_image.to(args.device)        
             depth_image = depth_image.to(args.device)
             label = label.to(args.device)
 
-            # RGB
-            if args.depth == False:            
-                standard_image = rgb_image
-                input_image = standard_image  
-            # Depth
-            elif args.depth == True:
-                standard_image = torch.cat((rgb_image, depth_image), dim=1)
-                input_image = standard_image
+            # strandard_iamge 세팅 
+            if args.model == "rgb":
+                standard_image = rgb_image    
+            elif args.model == "depth":
+                standard_image = depth_image   
+            elif args.model == "both":
+                standard_image = torch.cat((rgb_image, depth_image), dim=1)  
+            elif args.model == "proposed":
+                standard_image = torch.cat((rgb_image, depth_image), dim=1)  
 
-            # 모델 태우기 
-            recons_image = model(input_image)
+            # 모델 태우기
+            if args.model == "rgb":
+                recons_image = model(rgb_image)
+            elif args.model == "depth":
+                recons_image = model(depth_image)
+            else:
+                recons_image = model(rgb_image, depth_image)
 
             # Validation 할 때 loss 값 
             loss_valid = loss_function(standard_image, recons_image)
@@ -546,19 +448,19 @@ if __name__ == "__main__":
     parser.add_argument('--save-path', default='../ad_output/logs/Train/', type=str, help='train logs path')
     parser.add_argument('--save-path-valid', default='', type=str, help='valid logs path')
 
-    parser.add_argument('--model', default='', type=str, help='model')                                              # essential
+    parser.add_argument('--model', default='', type=str, help='rgb, depth, both, proposed')                                              # essential
     parser.add_argument('--checkpoint-path', default='', type=str, help='checkpoint path')
-    parser.add_argument('--depth', default=True, type=booltype, help='RGB or Depth(default: Depth)')                # essential
+    parser.add_argument('--layer', default=3, type=int, help='number of layers (default: 3)')                # essential
 
     parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')                      # essential
     parser.add_argument('--epochs', default=300, type=int, help='train epochs')                                     # essential
     parser.add_argument('--lowdata', default=True, type=booltype, help='whether low data is included')
-    parser.add_argument('--usedrop', default=False, type=booltype, help='whether dropout layer is used')            
     parser.add_argument('--dataset', default=0, type=int, help='data set type')
     parser.add_argument('--loss', default=0, type=int, help='0: mse, 1:rapp')
     
-    parser.add_argument('--gr', default=0.01, type=float, help='gaussian rate(default: 0.01)')
+    parser.add_argument('--gr', default=0.0, type=float, help='gaussian rate(default: 0.01)')
     parser.add_argument('--dr', default=0.5, type=float, help='dropout rate(default: 0.1)')
+    parser.add_argument('--batchnorm', default=False, type=booltype, help='batch normalization(default: False)')
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate(default: 0.001)')
     parser.add_argument('--skf', default=0, type=int, help='stratified k-fold')
 
@@ -567,6 +469,11 @@ if __name__ == "__main__":
     parser.add_argument('--device', default='', type=str, help='device when cuda is available')
 
     args = parser.parse_args()
+
+    # 체크 
+    if args.model not in ["rgb", "depth", "both", "proposed"]:
+         print("You need to checkout model [rgb, depth, both, proposed]")
+         sys.exit(0)
 
     # 결과 파일 path 설정 
     time_string = time.strftime('%Y-%m-%d_%I:%M_%p', time.localtime(time.time()))
@@ -598,10 +505,12 @@ if __name__ == "__main__":
     random.seed(args.seed)
 
     # data loader
-    train_loader, valid_loader, _ = Facedata_Loader(train_size=64, test_size=64, use_lowdata=args.lowdata, dataset=args.dataset, gaussian_radius=args.gr)
+    train_loader, valid_loader, _ = Facedata_Loader(train_size=64, test_size=64, use_lowdata=args.lowdata, dataset=args.dataset)
     
     # train 코드
     train(args, train_loader, valid_loader)
+
+
     
     
 
