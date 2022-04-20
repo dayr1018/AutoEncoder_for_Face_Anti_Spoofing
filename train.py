@@ -44,22 +44,18 @@ def train(args, train_loader, valid_loader):
     # tensorboard 코드도 여기에 넣기 
     # 모델, 옵티마이저, 스케줄러, loss함수 여기서 만들기
 
-    # logger 
-    logger = Logger(f'{args.save_path}/logs.logs')
+    # args 출력 
     logger.Print(args)
-
-    # Tensorboard 
-    writer = SummaryWriter(f"runs/{args.message}")
 
     # 모델 선택 
     if "rgb" in args.model:
-        model = AutoEncoder_RGB(args.layer, 3, args.batchnorm, args.dr).to(args.device)
+        model = AutoEncoder_RGB(args.layer, args.batchnorm, args.dr).to(args.device)
     elif "depth" in args.model:
-        model = AutoEncoder_Depth(args.layer, 1, args.batchnorm, args.dr).to(args.device)
+        model = AutoEncoder_Depth(args.layer, args.batchnorm, args.dr).to(args.device)
     elif "both" in args.model:
-        model = AutoEncoder_Intergrated_Basic(args.layer, 4, args.batchnorm, args.dr).to(args.device)
+        model = AutoEncoder_Intergrated_Basic(args.layer, args.batchnorm, args.dr).to(args.device)
     elif "proposed" in args.model:
-        model = AutoEncoder_Intergrated_Proposed(args.layer, 3, args.batchnorm, args.dr).to(args.device)
+        model = AutoEncoder_Intergrated_Proposed(3, 5, args.batchnorm, args.dr).to(args.device)
     else:
         print("args.model is not correct")
         sys.exit(0)
@@ -85,13 +81,6 @@ def train(args, train_loader, valid_loader):
     f1s_when_accuracy_criteria = []
     epochs_when_accuracy_criteria = []
 
-    thresholds_when_f1_criteria = []
-    accuracys_when_f1_criteria = []
-    precisions_when_f1_criteria = []
-    recalls_when_f1_criteria = []
-    f1s_when_f1_criteria = []
-    epochs_when_f1_criteria = []
-
     for epoch in range(args.epochs):
 
         logger.Print(f"***** << Training epoch:{epoch} >>")  
@@ -109,35 +98,34 @@ def train(args, train_loader, valid_loader):
         for batch, data in enumerate(train_loader, 0):
 
             rgb_image, depth_image, label, rgb_path = data
-            size = len(train_loader.dataset)
 
             # 가우시안 노이즈 세팅 
             if args.model == "rgb":
                 if args.gr is not 0:
                     rgb_image = torch.FloatTensor(random_noise(rgb_image, mode='gaussian', mean=0, var=args.gr, clip=True))
-                standard_image = rgb_image    
+                input_image = rgb_image    
 
             elif args.model == "depth":
                 if args.gr is not 0:
                     depth_image = torch.FloatTensor(random_noise(depth_image, mode='gaussian', mean=0, var=args.gr, clip=True))
-                standard_image = depth_image   
+                input_image = depth_image   
 
             elif args.model == "both":
                 if args.gr is not 0:
                     rgb_image = torch.FloatTensor(random_noise(rgb_image, mode='gaussian', mean=0, var=args.gr, clip=True))
                     depth_image = torch.FloatTensor(random_noise(depth_image, mode='gaussian', mean=0, var=args.gr, clip=True))
-                standard_image = torch.cat((rgb_image, depth_image), dim=1)  
+                input_image = torch.cat((rgb_image, depth_image), dim=1)  
 
             elif args.model == "proposed":
                 if args.gr is not 0:
                     rgb_image = torch.FloatTensor(random_noise(rgb_image, mode='gaussian', mean=0, var=args.gr, clip=True))
-                standard_image = torch.cat((rgb_image, depth_image), dim=1)  
+                input_image = torch.cat((rgb_image, depth_image), dim=1)  
 
             # 텐서화 
             rgb_image = rgb_image.to(args.device)
             depth_image = depth_image.to(args.device)
             label = label.to(args.device)
-            standard_image = standard_image.to(args.device)
+            input_image = input_image.to(args.device)
 
             # 모델 태우기
             if args.model == "rgb":
@@ -148,7 +136,7 @@ def train(args, train_loader, valid_loader):
                 recons_image = model(rgb_image, depth_image)
           
             # loss 불러오기
-            loss = mse(standard_image, recons_image)
+            loss = mse(input_image, recons_image)
 
             # 역전파
             optimizer.zero_grad()
@@ -163,10 +151,10 @@ def train(args, train_loader, valid_loader):
             green = []
             blue = []
             depth = []  
-            for i in range(len(standard_image)):
+            for i in range(len(input_image)):
                 
                 # 하나의 텐서에 대한 MSE 값 확인 
-                mse_per_tensor = mse(standard_image[i], recons_image[i]).cpu().detach().numpy()
+                mse_per_tensor = mse(input_image[i], recons_image[i]).cpu().detach().numpy()
                 mse_list.append(mse_per_tensor)                   
                      
                 # light 에 따라 데이터 분류하기 
@@ -187,8 +175,8 @@ def train(args, train_loader, valid_loader):
                     data_fake.append(mse_per_tensor)
 
                 # channel 별 MSE 확인 
-                for c in range(len(standard_image[i])) :
-                    mse_per_chnnel = mse(standard_image[i][c], recons_image[i][c])
+                for c in range(len(input_image[i])) :
+                    mse_per_chnnel = mse(input_image[i][c], recons_image[i][c])
                     if c == 0:
                         red.append(mse_per_chnnel)
                     elif c == 1:
@@ -201,7 +189,7 @@ def train(args, train_loader, valid_loader):
             # loss 출력 & 채널별 mse 총합 출력 
             if batch % 10 == 0:
                 loss, current = loss.item(), batch * len(data[0])
-                logger.Print(f"***** loss (std): {loss:5f}  [{current:>5d}/{size:>5d}]")
+                logger.Print(f"***** loss (std): {loss:5f}  [{current:>5d}/{len(train_loader.dataset):>5d}]")
                 logger.Print(f"***** loss (mse): {np.array(mse_list).sum():5f}")
                 logger.Print(f"***** loss (cal): {np.array(red+green+blue+depth).sum():5f}")
                 logger.Print(f"***** red: {np.array(red).sum():5f}, green: {np.array(green).sum():5f}, blue: {np.array(blue).sum():5f}, depth: {np.array(depth).sum():5f}")
@@ -210,16 +198,12 @@ def train(args, train_loader, valid_loader):
 
         if (epoch % 5) == 0 or epoch == (args.epochs-1):
             # validation 수행
-            result_when_accuracy_max, result_when_f1_max = valid(args, valid_loader, model, epoch, logger, mse, writer) 
-            logger.Print(f"Current Epoch: {epoch}, Accuracy: {result_when_accuracy_max[1]}, F1: {result_when_f1_max[4]}")
+            result_when_accuracy_max = valid(args, valid_loader, model, epoch) 
+            logger.Print(f"Current Epoch: {epoch}, Accuracy: {result_when_accuracy_max[1]}")
 
             writer.add_scalar("Threshold/Epoch (criteria: accuracy)", result_when_accuracy_max[0], epoch)
             writer.add_scalar("Accuracy/Epoch (criteria: accuracy)", result_when_accuracy_max[1], epoch)
             writer.add_scalar("F1/Epoch (criteria: accuracy)", result_when_accuracy_max[4], epoch)
-            
-            writer.add_scalar("Threshold/Epoch (criteria: f1)", result_when_f1_max[0], epoch)
-            writer.add_scalar("Accuracy/Epoch (criteria: f1)", result_when_f1_max[1], epoch)
-            writer.add_scalar("F1/Epoch (criteria: f1)", result_when_f1_max[4], epoch)
 
             # accuracy 를 기준으로 했을 때
             thresholds_when_accuracy_criteria.append(result_when_accuracy_max[0])
@@ -229,15 +213,7 @@ def train(args, train_loader, valid_loader):
             f1s_when_accuracy_criteria.append(result_when_accuracy_max[4])
             epochs_when_accuracy_criteria.append(epoch)
 
-            # f1 score를 기준으로 했을 때 
-            thresholds_when_f1_criteria.append(result_when_f1_max[0])
-            accuracys_when_f1_criteria.append(result_when_f1_max[1])
-            precisions_when_f1_criteria.append(result_when_f1_max[2])
-            recalls_when_f1_criteria.append(result_when_f1_max[3])
-            f1s_when_f1_criteria.append(result_when_f1_max[4])
-            epochs_when_f1_criteria.append(epoch)
-
-            # 0, 10, 20, ... 순서대로 weight들 저장   
+            # 0, 5, 10, ... 순서대로 weight들 저장   
             checkpoint = f'{args.checkpoint_path}/epoch_{epoch}_model.pth'
             torch.save(model.state_dict(), checkpoint)
             
@@ -255,15 +231,6 @@ def train(args, train_loader, valid_loader):
     ma_threshold = thresholds_when_accuracy_criteria[ma_index]
     ma_epoch = epochs_when_accuracy_criteria[ma_index]
 
-    # 모든 게 끝났을 때, f1 score를 기준으로 했던 결과들 중 가장 큰 f1 score를 갖는 때 
-    max_f1 = max(f1s_when_f1_criteria)
-    mf_index = f1s_when_f1_criteria.index(max_f1)
-    mf_precision = precisions_when_f1_criteria[mf_index]
-    mf_recall = recalls_when_f1_criteria[mf_index]
-    mf_accuracy = accuracys_when_f1_criteria[mf_index]
-    mf_threshold = thresholds_when_f1_criteria[mf_index]
-    mf_epoch = epochs_when_f1_criteria[mf_index]
-
     logger.Print(f"\n***** Total Threshold per epoch (criteria: accuracy)")
     logger.Print(thresholds_when_accuracy_criteria)
     logger.Print(f"***** Total Accuracy per epoch (criteria: accuracy)")
@@ -277,20 +244,7 @@ def train(args, train_loader, valid_loader):
     logger.Print(f"***** Total epoch (criteria: accuracy)")
     logger.Print(epochs_when_accuracy_criteria)
 
-    logger.Print(f"\n***** Total Threshold per epoch (criteria: f1)")
-    logger.Print(thresholds_when_f1_criteria)
-    logger.Print(f"***** Total Accuracy per epoch (criteria: f1)")
-    logger.Print(accuracys_when_f1_criteria)
-    logger.Print(f"***** Total Precision per epoch (criteria: f1)")
-    logger.Print(precisions_when_f1_criteria)
-    logger.Print(f"***** Total Recall per epoch (criteria: f1)")
-    logger.Print(recalls_when_f1_criteria)
-    logger.Print(f"***** Total F1 per epoch (criteria: f1)")
-    logger.Print(f1s_when_f1_criteria)
-    logger.Print(f"***** Total epoch (criteria: f1)")
-    logger.Print(epochs_when_f1_criteria) 
-
-    logger.Print(f"\n***** Result (criteria: accuracy)")
+    logger.Print(f"\n***** Result (Valid)")
     logger.Print(f"Accuracy: {max_accuracy:3f}")
     logger.Print(f"Precision: {ma_precision:3f}")
     logger.Print(f"Recall: {ma_recall:3f}")
@@ -298,17 +252,11 @@ def train(args, train_loader, valid_loader):
     logger.Print(f"Epoch: {ma_epoch}")
     logger.Print(f"Threshold: {ma_threshold:3f}")
 
-    logger.Print(f"\n***** Result (criteria: f1)")
-    logger.Print(f"Accuracy: {mf_accuracy:3f}")
-    logger.Print(f"Precision: {mf_precision:3f}")
-    logger.Print(f"Recall: {mf_recall:3f}")
-    logger.Print(f"F1: {max_f1:3f}")
-    logger.Print(f"Epoch: {mf_epoch}")
-    logger.Print(f"Threshold: {mf_threshold:3f}")
-
     writer.close()
 
-def valid(args, valid_loader, model, epoch, logger, loss_function, writer):
+    return ma_epoch, ma_threshold
+
+def valid(args, valid_loader, model, epoch):
 
     model.eval()
 
@@ -325,6 +273,8 @@ def valid(args, valid_loader, model, epoch, logger, loss_function, writer):
     data_real = []
     data_fake = []
     
+    mse = torch.nn.MSELoss(reduction='sum')
+
     with torch.no_grad():
         for _, data in enumerate(valid_loader):
 
@@ -333,15 +283,15 @@ def valid(args, valid_loader, model, epoch, logger, loss_function, writer):
             depth_image = depth_image.to(args.device)
             label = label.to(args.device)
 
-            # strandard_iamge 세팅 
+            # input_iamge 세팅 
             if args.model == "rgb":
-                standard_image = rgb_image    
+                input_image = rgb_image    
             elif args.model == "depth":
-                standard_image = depth_image   
+                input_image = depth_image   
             elif args.model == "both":
-                standard_image = torch.cat((rgb_image, depth_image), dim=1)  
+                input_image = torch.cat((rgb_image, depth_image), dim=1)  
             elif args.model == "proposed":
-                standard_image = torch.cat((rgb_image, depth_image), dim=1)  
+                input_image = torch.cat((rgb_image, depth_image), dim=1)  
 
             # 모델 태우기
             if args.model == "rgb":
@@ -352,14 +302,14 @@ def valid(args, valid_loader, model, epoch, logger, loss_function, writer):
                 recons_image = model(rgb_image, depth_image)
 
             # Validation 할 때 loss 값 
-            loss_valid = loss_function(standard_image, recons_image)
+            loss_valid = mse(input_image, recons_image)
             writer.add_scalar("Loss/Epoch (Valid)", loss_valid, epoch)
 
             # 모든 데이터에 대한 MSE 구하기            
-            for i in range(len(standard_image)):
+            for i in range(len(input_image)):
 
                 # 하나의 텐서에 대한 MSE 값 확인 
-                mse_per_tensor = loss_function(standard_image[i], recons_image[i]).cpu().detach().numpy()
+                mse_per_tensor = mse(input_image[i], recons_image[i]).cpu().detach().numpy()
                 mse_total.append(mse_per_tensor)  
                 
                 # light 에 따라 데이터 분류하기 
@@ -422,22 +372,128 @@ def valid(args, valid_loader, model, epoch, logger, loss_function, writer):
 
     result_when_accuracy_max = [ma_threshold, max_accuracy, ma_precision, ma_recall, ma_f1]
 
-    # F1 score 가 최대일 때의 일련의 결과값
-    max_f1 = max(f1_per_thres)
-    mf_index = f1_per_thres.index(max_f1)
-    mf_precision = precision_per_thres[mf_index]
-    mf_recall = recall_per_thres[mf_index]
-    mf_accuracy = accuracy_per_thres[mf_index]
-    mf_threshold = threshold[mf_index]
-
-    result_when_f1_max = [mf_threshold, mf_accuracy, mf_precision, mf_recall, max_f1]
-
     # 데이터 분포도 그래프로 그리기  
     plot_3_kind_data(args.save_path_valid, f"Light_Distribution_Epoch_{epoch}", epoch, data_high, data_mid, data_low)
     plot_real_fake_data(args.save_path_valid, f"Mask_Distribution_Epoch_{epoch}", epoch, data_real, data_fake)
     plot_histogram(f"{args.save_path_valid}", f"Valid_Historgram_{epoch}_", epoch, data_real, data_fake)
 
-    return result_when_accuracy_max, result_when_f1_max
+    return result_when_accuracy_max
+
+
+def test(args, test_loader, weight_path, threshold):
+
+    global logger
+
+    # 모델 선택 
+    if "rgb" in args.model:
+        model = AutoEncoder_RGB(args.layer, args.batchnorm, args.dr).to(args.device)
+    elif "depth" in args.model:
+        model = AutoEncoder_Depth(args.layer, args.batchnorm, args.dr).to(args.device)
+    elif "both" in args.model:
+        model = AutoEncoder_Intergrated_Basic(args.layer, args.batchnorm, args.dr).to(args.device)
+    elif "proposed" in args.model:
+        model = AutoEncoder_Intergrated_Proposed(3, 5, args.batchnorm, args.dr).to(args.device)
+    else:
+        print("args.model is not correct")
+        sys.exit(0)
+
+
+    model.load_state_dict(torch.load(weight_path))
+    model.eval()
+
+    # 1. 전체 데이터에 대한 MSE 구하기 
+    mse_total = []
+
+    y_true = []
+    y_prob = []
+    y_pred = []
+
+    data_high = []
+    data_mid = []
+    data_low = []
+
+    data_real = []
+    data_fake = []
+
+    mse = torch.nn.MSELoss(reduction='sum')
+
+    with torch.no_grad():
+        for data in test_loader:
+
+            rgb_image, depth_image, label, rgb_path = data
+            rgb_image = rgb_image.to(args.device)        
+            depth_image = depth_image.to(args.device)
+            label = label.to(args.device)
+
+            # input_iamge 세팅 
+            if args.model == "rgb":
+                input_image = rgb_image    
+            elif args.model == "depth":
+                input_image = depth_image   
+            elif args.model == "both":
+                input_image = torch.cat((rgb_image, depth_image), dim=1)  
+            elif args.model == "proposed":
+                input_image = torch.cat((rgb_image, depth_image), dim=1)  
+
+            # 모델 태우기
+            if args.model == "rgb":
+                recons_image = model(rgb_image)
+            elif args.model == "depth":
+                recons_image = model(depth_image)
+            else:
+                recons_image = model(rgb_image, depth_image)
+
+
+            # 모든 데이터에 대한 MSE 구하기            
+            for i in range(len(input_image)):
+
+                # 하나의 텐서에 대한 MSE 값 확인 
+                mse_per_tensor = mse(input_image[i], recons_image[i]).cpu().detach().numpy() 
+                
+                # light 에 따라 데이터 분류하기 
+                path = rgb_path[i].split('/')[-5]
+                if "High" in path:
+                    data_high.append(mse_per_tensor)
+                elif "Mid" in path:
+                    data_mid.append(mse_per_tensor)
+                elif "Low" in path:
+                    data_low.append(mse_per_tensor)
+                else:
+                    logger.Print("Data Classification Error - High, Mid, Low")
+
+                # mask 유무에 따라 데이터 분류하기
+                if label[i].item() == 1:
+                    data_real.append(mse_per_tensor)
+                else:
+                    data_fake.append(mse_per_tensor)
+
+                # 모델 결과값 
+                y_true.append(label[i].cpu().detach().numpy())
+                y_prob.append(mse_per_tensor)
+                if mse_per_tensor < threshold:
+                    y_pred.append(1)
+                else:
+                    y_pred.append(0)
+                
+    # light, mask유무 에 따른 데이터분포 그리기
+    if not os.path.exists(f'{args.save_path_test}/graph'):
+        os.makedirs(f'{args.save_path_test}/graph')
+    plot_3_kind_data(f"{args.save_path_test}/graph", "data_distribution(light)", "x", data_high, data_mid, data_low)       
+    plot_real_fake_data(f"{args.save_path_test}/graph", "data_distribution(real,fake)", "x", data_real, data_fake)
+    plot_histogram(f"{args.save_path_test}/graph", f"Test_Historgram_", "x", data_real, data_fake)
+
+    # 모델 평가지표 및 그리기 
+    plot_roc_curve(f"{args.save_path_test}/graph", f"threshold({threshold})", y_true, y_prob)
+    
+    accuracy, precision, recall, f1 = cal_metrics(y_true, y_pred)
+
+    ## 결과 파일 따로 저장 
+    logger.Print(f"***** Result (Test)")
+    logger.Print(f"Accuracy: {accuracy:3f}")
+    logger.Print(f"Precisioin: {precision:3f}")
+    logger.Print(f"Recall: {recall:3f}")
+    logger.Print(f"F1: {f1:3f}")
+    logger.Print(f"Threshold: {threshold}")
 
 
 if __name__ == "__main__":
@@ -447,10 +503,11 @@ if __name__ == "__main__":
 
     parser.add_argument('--save-path', default='../ad_output/logs/Train/', type=str, help='train logs path')
     parser.add_argument('--save-path-valid', default='', type=str, help='valid logs path')
+    parser.add_argument('--save-path-test', default='../ad_output/logs/Test/', type=str, help='test logs path')
 
     parser.add_argument('--model', default='', type=str, help='rgb, depth, both, proposed')                                              # essential
     parser.add_argument('--checkpoint-path', default='', type=str, help='checkpoint path')
-    parser.add_argument('--layer', default=3, type=int, help='number of layers (default: 3)')                # essential
+    parser.add_argument('--layer', default=4, type=int, help='number of layers (default: 4)')                # essential
 
     parser.add_argument('--message', default='', type=str, help='pretrained model checkpoint')                      # essential
     parser.add_argument('--epochs', default=300, type=int, help='train epochs')                                     # essential
@@ -477,14 +534,21 @@ if __name__ == "__main__":
 
     # 결과 파일 path 설정 
     time_string = time.strftime('%Y-%m-%d_%I:%M_%p', time.localtime(time.time()))
-    args.save_path = args.save_path + f'{args.message}' + '_' + f'{time_string}'  
-    if not os.path.exists(args.save_path): os.makedirs(args.save_path)
+    args.save_path = args.save_path + f'{args.message}' + '_' + f'{time_string}'
     args.save_path_valid = args.save_path + '/valid'
-    if not os.path.exists(args.save_path_valid): os.makedirs(args.save_path_valid)
+    args.save_path_test = args.save_path + '/test'
 
+    if not os.path.exists(args.save_path): 
+        os.makedirs(args.save_path)    
+    if not os.path.exists(args.save_path_valid): 
+        os.makedirs(args.save_path_valid)
+    if not os.path.exists(args.save_path_test): 
+        os.makedirs(args.save_path_test)
+    
     # weight 파일 path
-    args.checkpoint_path = f'../ad_output/checkpoint/{args.message}'
-    if not os.path.exists(args.checkpoint_path): os.makedirs(args.checkpoint_path)
+    args.checkpoint_path = f'/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_output/checkpoint/{args.message}'
+    if not os.path.exists(args.checkpoint_path): 
+        os.makedirs(args.checkpoint_path)
 
     # cuda 관련 코드
     use_cuda = True if torch.cuda.is_available() else False
@@ -504,15 +568,23 @@ if __name__ == "__main__":
     np.random.seed(args.seed)
     random.seed(args.seed)
 
+    # logger 
+    global logger 
+    logger = Logger(f'{args.save_path}/logs.logs')
+
+    # Tensorboard 
+    global writer    
+    writer = SummaryWriter(f"runs/{args.message}")
+
     # data loader
-    train_loader, valid_loader, _ = Facedata_Loader(train_size=64, test_size=64, use_lowdata=args.lowdata, dataset=args.dataset)
+    train_loader, valid_loader, test_loader = Facedata_Loader(train_size=64, test_size=64, use_lowdata=args.lowdata, dataset=args.dataset)
     
     # train 코드
-    train(args, train_loader, valid_loader)
+    epoch, threshold = train(args, train_loader, valid_loader)
+    weight_path = f"{args.checkpoint_path}/epoch_{epoch}_model.pth"
 
-
-    
-    
-
+    # test 코드
+    test(args, test_loader, weight_path, threshold)
+   
 
 

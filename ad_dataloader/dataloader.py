@@ -27,14 +27,13 @@ test_data_w_etc_wo_low_path = "MakeTextFileCode_RGB_Depth/test_data_list_w_etc_w
 
 class Face_Data(Dataset):
         def __init__(self, metadata_root = '/mnt/nas3/yrkim/liveness_lidar_project/GC_project/ad_code/metadata/', 
-                        data_root = '/mnt/nas3/yrkim/liveness_lidar_project/GC_project/data/' , datatxt = '', transform=None, isTrain=True):
+                        data_root = '/mnt/nas3/yrkim/liveness_lidar_project/GC_project/data/' , datatxt = '', transform=None):
             self.metadata_root = metadata_root
             self.data_root = data_root
             self.transform = transform
             self.rgb_paths = []
             self.depth_paths = []
             self.labels = []
-            self.isTrain = isTrain
 
             lines_in_txt = open(os.path.join(metadata_root, datatxt),'r')
 
@@ -53,8 +52,8 @@ class Face_Data(Dataset):
             rgb_path = self.rgb_paths[index]
             depth_path = self.depth_paths[index]
 
-            rgb_img = Image.open(rgb_path).convert('RGB')
-            depth_img = Image.open(depth_path).convert('L')
+            rgb_image = Image.open(rgb_path).convert('RGB')
+            depth_image = Image.open(depth_path).convert('L')
 
             transform_RGB = transforms.Compose([
                 transforms.Resize((128,128)),
@@ -68,12 +67,12 @@ class Face_Data(Dataset):
                 transforms.Normalize(mean=[0], std=[1])
             ])
 
-            rgb_img = transform_RGB(rgb_img)
-            depth_img = transform_Depth(depth_img)
+            rgb_image = transform_RGB(rgb_image)
+            depth_image = transform_Depth(depth_image)
 
             label = torch.as_tensor(int(self.labels[index]))
             
-            return rgb_img, depth_img, label, rgb_path
+            return rgb_image, depth_image, label, rgb_path
 
         def __len__(self):
             return len(self.rgb_paths)
@@ -84,28 +83,28 @@ def Facedata_Loader(train_size=64, test_size=64, use_lowdata=True, dataset=0):
     if dataset == 0 : 
         print("***** Data set's type is 0 (original).")
         if use_lowdata:
-            train_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/train_data_list.txt', isTrain=True)
-            valid_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/valid_data_list.txt', isTrain=False)
-            test_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/test_data_list.txt', isTrain=False) 
+            train_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/train_data_list.txt')
+            valid_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/valid_data_list.txt')
+            test_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/test_data_list.txt') 
             print("***** Low data is included to data set.")
         else:
-            train_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/train_data_list_wo_low.txt", isTrain=True)
-            valid_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/valid_data_list_wo_low.txt", isTrain=False)
-            test_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/test_data_list_wo_low.txt", isTrain=False)
+            train_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/train_data_list_wo_low.txt")
+            valid_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/valid_data_list_wo_low.txt")
+            test_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/test_data_list_wo_low.txt")
             print("***** Low data is not included to data set.")
 
     # 추가된 데이터(trian셋은 동일)
     elif dataset == 1:
         print("***** Data set's type is 1 (added otherthings).")
         if use_lowdata:
-            train_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/train_data_list_w_etc.txt', isTrain=True)
-            valid_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/valid_data_list_w_etc.txt', isTrain=False)
-            test_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/test_data_list_w_etc.txt', isTrain=False) 
+            train_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/train_data_list_w_etc.txt')
+            valid_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/valid_data_list_w_etc.txt')
+            test_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/test_data_list_w_etc.txt') 
             print("***** Low data is included to data set")
         else:
-            train_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/train_data_list_w_etc_wo_low.txt", isTrain=True)
-            valid_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/valid_data_list_w_etc_wo_low.txt", isTrain=False)
-            test_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/test_data_list_w_etc_wo_low.txt", isTrain=False)  
+            train_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/train_data_list_w_etc_wo_low.txt")
+            valid_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/valid_data_list_w_etc_wo_low.txt")
+            test_data=Face_Data(datatxt="MakeTextFileCode_RGB_Depth/test_data_list_w_etc_wo_low.txt")  
             print("***** Low data is not included to data set")
 
     train_loader = DataLoader(dataset=train_data, batch_size=train_size, shuffle=True, num_workers=8)

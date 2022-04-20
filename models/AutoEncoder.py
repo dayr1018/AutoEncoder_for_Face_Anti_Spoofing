@@ -8,16 +8,16 @@ from skimage.util import random_noise
 # 3. Model using RGB+Depth
 
 class AutoEncoder_RGB(nn.Module):
-    def __init__(self, layer_number=3, input_channel=3, batch_norm=False, dropout_rate=0.05):
+    def __init__(self, layer_number=3, batch_norm=False, dropout_rate=0.05):
         super(AutoEncoder_RGB, self).__init__()
 
         # dropout parameter
         self.dropout_rate = dropout_rate
-        if self.dropout_rate != 0:
+        if self.dropout_rate is not 0:
             self.dropout_layer = nn.Dropout2d(dropout_rate)
 
-        self.encoder = make_encoder(layer_number, input_channel, batch_norm, nn.ELU())
-        self.decoder = make_decoder(layer_number, input_channel, batch_norm, nn.ELU())
+        self.encoder = make_encoder(layer_number, 3, batch_norm, nn.ELU())
+        self.decoder = make_decoder(layer_number, 3, batch_norm, nn.ELU())
     
     def forward(self, x):
 
@@ -30,16 +30,16 @@ class AutoEncoder_RGB(nn.Module):
         return out
 
 class AutoEncoder_Depth(nn.Module):
-    def __init__(self, layer_number=3, input_channel=1, batch_norm=False, dropout_rate=0.05):
+    def __init__(self, layer_number=3, batch_norm=False, dropout_rate=0.05):
         super(AutoEncoder_Depth, self).__init__()
 
         # dropout parameter
         self.dropout_rate = dropout_rate
-        if self.dropout_rate != 0:
+        if self.dropout_rate is not 0:
             self.dropout_layer = nn.Dropout2d(dropout_rate)
 
-        self.encoder = make_encoder(layer_number, input_channel, batch_norm, nn.ELU())
-        self.decoder = make_decoder(layer_number, input_channel, batch_norm, nn.ELU())
+        self.encoder = make_encoder(layer_number, 1, batch_norm, nn.ELU())
+        self.decoder = make_decoder(layer_number, 1, batch_norm, nn.ELU())
     
     def forward(self, x):
 
@@ -52,12 +52,12 @@ class AutoEncoder_Depth(nn.Module):
         return out
 
 class AutoEncoder_Intergrated_Basic(nn.Module):
-    def __init__(self, layer_number=3, input_channel=4, batch_norm=False, dropout_rate=0.05):
+    def __init__(self, layer_number=4, batch_norm=False, dropout_rate=0.05):
         super(AutoEncoder_Intergrated_Basic, self).__init__()
 
         # dropout parameter
         self.dropout_rate = dropout_rate
-        if self.dropout_rate != 0:
+        if self.dropout_rate is not 0:
             self.dropout_layer = nn.Dropout2d(dropout_rate)
 
         self.encoder = make_encoder(layer_number, 4, batch_norm, nn.ELU())
@@ -76,35 +76,36 @@ class AutoEncoder_Intergrated_Basic(nn.Module):
         return out
 
 class AutoEncoder_Intergrated_Proposed(nn.Module):
-    def __init__(self, layer_number=3, input_channel=4, batch_norm=False, dropout_rate=0.05, gaussian_std=0.01):
+    def __init__(self, rlayer_number=3, dlayer_number=5, batch_norm=False, dropout_rate=0.05):
         super(AutoEncoder_Intergrated_Proposed, self).__init__()
 
         # dropout parameter
         self.dropout_rate = dropout_rate
-        if self.dropout_rate != 0:
+        if self.dropout_rate is not 0:
             self.dropout_layer = nn.Dropout2d(dropout_rate)
+ 
+        # RGB Autoencoder: layer 3, Using Gaussiann Noise(0.01), Not using dropout layer
+        self.rgb_encoder = make_encoder(rlayer_number, 3, batch_norm, nn.ELU())
+        self.rgb_decoder = make_decoder(rlayer_number, 3, batch_norm, nn.ELU())
         
-        # gaussian noise parameter
-        self.gaussian_std = gaussian_std
-
-        self.rgb_encoder = make_encoder(layer_number, 3, batch_norm, nn.ELU())
-        self.rgb_decoder = make_decoder(layer_number, 3, batch_norm, nn.ELU())
-        
-        self.depth_encoder = make_encoder(layer_number, 1, batch_norm, nn.ELU())
-        self.depth_decoder = make_decoder(layer_number, 1, batch_norm, nn.ELU())
+        # Depth Autoencoder : layer 5, Using Dropout layer(0.7), Not using Gaussian Noise
+        self.depth_encoder = make_encoder(dlayer_number, 1, batch_norm, nn.ELU())
+        self.depth_decoder = make_decoder(dlayer_number, 1, batch_norm, nn.ELU())
        
     def forward(self, x, y):
 
-        # 구현해야 함!!!!!!!!!!!!!!
-
-        if self.dropout_rate is not 0:
-            x = self.dropout_layer(x)
-
-        latent = self.encoder_layer(x)
-        out = self.decoder_layer(latent)
+        # RGB Autoencoder
+        latent1 = self.rgb_encoder(x)
+        out1 = self.rgb_decoder(latent1)
       
+        # Depth Autoencoder
+        if self.dropout_rate is not 0:
+            y = self.dropout_layer(y)
+        latent2 = self.depth_encoder(y)
+        out2 = self.depth_decoder(latent2)
+      
+        out = torch.cat((out1, out2), dim=1)
         return out
-
 
 def make_encoder(layer_number, input_channel, batch_norm, act_func):
     encoder = []

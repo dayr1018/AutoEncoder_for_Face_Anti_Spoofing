@@ -64,15 +64,20 @@ def cal_metrics(y_true, y_pred):
     
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
 
-    # accuracy_cal = (float(tp) + float(tn)) / (float(tp) + float(fn) + float(fp) + float(tn))
-    # precision_cal = float(tp) / (float(tp) + float(fp))  
-    # recall_cal = float(tp) / (float(tp) + float(fn))
+    accuracy = (tp + tn) / (tp + fn + fp + tn + 1e-12)
+    precision = tp / (tp + fp + 1e-12)  
+    recall = tp / (tp + fn + 1e-12)
+    f1 = 2 * (precision * recall) / (precision + recall + 1e-12)
 
-    # f1_cal = 0
-    # if precision_cal + recall_cal != 0:
-    #     f1_cal = 2 * (float(precision_cal) * float(recall_cal)) / (float(precision_cal) + float(recall_cal))
+    return accuracy, precision, recall, f1
+
+def cal_metrics2(y_true, y_pred):
     
-    # return accuracy_cal, precision_cal, recall_cal, f1_cal
+    if len(y_true) != len(y_pred):
+        print("Evalution length Error - y_true, y_pred")
+        return 0,0,0,0
+    
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
 
     accuracy = (tp + tn) / (tp + fn + fp + tn + 1e-12)
     precision = tp / (tp + fp + 1e-12)  
