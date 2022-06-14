@@ -44,6 +44,10 @@ def train(args, train_loader, valid_loader):
     # tensorboard 코드도 여기에 넣기 
     # 모델, 옵티마이저, 스케줄러, loss함수 여기서 만들기
 
+    # Tensorboard 
+    global writer    
+    writer = SummaryWriter(f"runs/{args.message}")
+
     # args 출력 
     logger.Print(args)
 
@@ -101,23 +105,23 @@ def train(args, train_loader, valid_loader):
 
             # 가우시안 노이즈 세팅 
             if args.model == "rgb":
-                if args.gr is not 0:
+                if args.gr != 0:
                     rgb_image = torch.FloatTensor(random_noise(rgb_image, mode='gaussian', mean=0, var=args.gr, clip=True))
                 input_image = rgb_image    
 
             elif args.model == "depth":
-                if args.gr is not 0:
+                if args.gr != 0:
                     depth_image = torch.FloatTensor(random_noise(depth_image, mode='gaussian', mean=0, var=args.gr, clip=True))
                 input_image = depth_image   
 
             elif args.model == "both":
-                if args.gr is not 0:
+                if args.gr != 0:
                     rgb_image = torch.FloatTensor(random_noise(rgb_image, mode='gaussian', mean=0, var=args.gr, clip=True))
                     depth_image = torch.FloatTensor(random_noise(depth_image, mode='gaussian', mean=0, var=args.gr, clip=True))
                 input_image = torch.cat((rgb_image, depth_image), dim=1)  
 
             elif args.model == "proposed":
-                if args.gr is not 0:
+                if args.gr != 0:
                     rgb_image = torch.FloatTensor(random_noise(rgb_image, mode='gaussian', mean=0, var=args.gr, clip=True))
                 input_image = torch.cat((rgb_image, depth_image), dim=1)  
 
@@ -571,10 +575,6 @@ if __name__ == "__main__":
     # logger 
     global logger 
     logger = Logger(f'{args.save_path}/logs.logs')
-
-    # Tensorboard 
-    global writer    
-    writer = SummaryWriter(f"runs/{args.message}")
 
     # data loader
     train_loader, valid_loader, test_loader = Facedata_Loader(train_size=64, test_size=64, use_lowdata=args.lowdata, dataset=args.dataset)

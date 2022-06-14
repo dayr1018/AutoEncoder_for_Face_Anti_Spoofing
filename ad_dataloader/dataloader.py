@@ -97,7 +97,8 @@ def Facedata_Loader(train_size=64, test_size=64, use_lowdata=True, dataset=0):
     elif dataset == 1:
         print("***** Data set's type is 1 (added otherthings).")
         if use_lowdata:
-            train_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/train_data_list_w_etc.txt')
+            train_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/train_data_list.txt')
+            #train_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/train_data_list_w_etc.txt')
             valid_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/valid_data_list_w_etc.txt')
             test_data=Face_Data(datatxt='MakeTextFileCode_RGB_Depth/test_data_list_w_etc.txt') 
             print("***** Low data is included to data set")
