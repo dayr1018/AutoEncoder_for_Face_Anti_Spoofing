@@ -11,7 +11,7 @@ Welcome to the Repository for Auto-Encoder for Face Anti-Spoofing. This reposito
 **[Second Approach - with Gaussian Noise]**    
 ![image](https://user-images.githubusercontent.com/14557402/217779947-20fc52e7-5312-4bc0-a64e-05db4bb91b76.png)
 
-**[Third Approach - with Dropout Lyaer]**    
+**[Third Approach - with Dropout Layer]**    
 ![image](https://user-images.githubusercontent.com/14557402/217779992-121f012d-8316-46f3-90f5-1d0392d16499.png)
 
 # Experimental Results
