@@ -1,6 +1,6 @@
 # Auto-Encoder for Face Anti-Spoofing
 
-Welcome to the Repository for Auto-Encoder for Face Anti-Spoofing. This repository is for experimenting with face anti-spoofing abnomaly detection model implemented with auto-encoder. This expeirments were motivated from ***"Use of in-the-wild images for anomaly detection in face anti-spoofing(arxiv, 2020)"*** The paper proposed auto-encoder with RGB images. But herein, I tried auto-encoder with RGB and Depth. [Face Dataset was obtained from AI Hub](https://aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&aihubDataSe=realm&dataSetSn=161).
+Welcome to the Repository for Auto-Encoder for Face Anti-Spoofing. This repository is for experimenting with face anti-spoofing abnomaly detection model implemented with auto-encoder. This expeirments were motivated from ***"Use of in-the-wild images for anomaly detection in face anti-spoofing(arxiv, 2020)"*** [[Paper Link]](https://arxiv.org/abs/2006.10626) The paper proposed auto-encoder with RGB images. However, herein, I implemented auto-encoder with RGB and Depth. To improve the performance of model, I tried with a gaussian nosie and dropout layer. [Face Dataset was obtained from AI Hub](https://aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&aihubDataSe=realm&dataSetSn=161).
 
 
 # Architecture of Auto-Encoder
